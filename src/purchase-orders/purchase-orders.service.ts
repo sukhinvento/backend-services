@@ -22,9 +22,11 @@ export class PurchaseOrdersService {
     private readonly queryBuilder: QueryBuilderService<PurchaseOrderDocument>,
   ) {}
 
-  async create(createPurchaseOrderDto: CreatePurchaseOrderDto, userId: string) {
-    // TODO: Get tenant from request context
-    const tenantId = 'furniture_world';
+  async create(
+    createPurchaseOrderDto: CreatePurchaseOrderDto,
+    userId: string,
+    tenantId: string,
+  ) {
     const fieldConfigs = await this.tenantsService.getFieldConfiguration(
       tenantId,
       'purchase_order',
@@ -33,14 +35,20 @@ export class PurchaseOrdersService {
     for (const fieldConfig of fieldConfigs) {
       if (
         fieldConfig.required &&
-        !createPurchaseOrderDto.custom_fields[fieldConfig.field_id]
+        !createPurchaseOrderDto.custom_fields?.[fieldConfig.field_id]
       ) {
         throw new BadRequestException(`${fieldConfig.label} is required.`);
       }
     }
 
+    const po_number =
+      createPurchaseOrderDto.po_number ||
+      `PO-${tenantId.slice(0, 6).toUpperCase()}-${Date.now()}`;
+
     const newPurchaseOrder = new this.purchaseOrderModel({
       ...createPurchaseOrderDto,
+      po_number,
+      tenantId,
       status: 'draft',
       createdBy: userId,
       updatedBy: userId,
@@ -52,7 +60,6 @@ export class PurchaseOrdersService {
       action: 'create',
       entity: 'purchase_order',
       entityId: savedPurchaseOrder.id as string,
-
       newValue: savedPurchaseOrder.toObject(),
       tenantId,
     });
@@ -60,23 +67,43 @@ export class PurchaseOrdersService {
     return savedPurchaseOrder;
   }
 
-  async findAll(query: QueryDto) {
-    return this.queryBuilder.buildQuery(this.purchaseOrderModel, query).exec();
+  async getStats(tenantId: string) {
+    const orders = await this.purchaseOrderModel.find({ tenantId }).lean().exec();
+    const totalOrders = orders.length;
+    const pendingOrders = orders.filter(o => ['draft', 'pending'].includes(String(o.status))).length;
+    const approvedOrders = orders.filter(o => o.status === 'approved').length;
+    const deliveredOrders = orders.filter(o => o.status === 'fulfilled').length;
+    const totalValue = orders.reduce((sum, o: any) => sum + (o.grand_total || o.total || 0), 0);
+    const pendingValue = orders
+      .filter(o => ['draft', 'pending'].includes(String(o.status)))
+      .reduce((sum, o: any) => sum + (o.grand_total || o.total || 0), 0);
+    const averageOrderValue = totalOrders > 0 ? totalValue / totalOrders : 0;
+    return { totalOrders, pendingOrders, approvedOrders, deliveredOrders, totalValue, pendingValue, averageOrderValue };
   }
 
-  async findOne(id: string) {
-    return this.purchaseOrderModel.findById(id).exec();
+  async findAll(query: QueryDto, tenantId: string) {
+    const filter = { ...(query.filter || {}), tenantId };
+    return this.queryBuilder
+      .buildQuery(this.purchaseOrderModel, { ...query, filter })
+      .exec();
+  }
+
+  async findOne(id: string, tenantId: string) {
+    return this.purchaseOrderModel.findOne({ _id: id, tenantId }).exec();
   }
 
   async update(
     id: string,
     updatePurchaseOrderDto: UpdatePurchaseOrderDto,
     userId: string,
+    tenantId: string,
   ) {
-    const oldPurchaseOrder = await this.purchaseOrderModel.findById(id).exec();
+    const oldPurchaseOrder = await this.purchaseOrderModel
+      .findOne({ _id: id, tenantId })
+      .exec();
     const updatedPurchaseOrder = await this.purchaseOrderModel
-      .findByIdAndUpdate(
-        id,
+      .findOneAndUpdate(
+        { _id: id, tenantId },
         { ...updatePurchaseOrderDto, updatedBy: userId },
         { new: true },
       )
@@ -87,19 +114,17 @@ export class PurchaseOrdersService {
       action: 'update',
       entity: 'purchase_order',
       entityId: id,
-
       oldValue: oldPurchaseOrder?.toObject(),
-
       newValue: updatedPurchaseOrder?.toObject(),
-      tenantId: 'furniture_world', // TODO: Get from context
+      tenantId,
     });
 
     return updatedPurchaseOrder;
   }
 
-  async remove(id: string, userId: string) {
+  async remove(id: string, userId: string, tenantId: string) {
     const removedPurchaseOrder = await this.purchaseOrderModel
-      .findByIdAndDelete(id)
+      .findOneAndDelete({ _id: id, tenantId })
       .exec();
 
     void this.auditService.log({
@@ -107,19 +132,37 @@ export class PurchaseOrdersService {
       action: 'delete',
       entity: 'purchase_order',
       entityId: id,
-
       oldValue: removedPurchaseOrder?.toObject(),
-      tenantId: 'furniture_world', // TODO: Get from context
+      tenantId,
     });
 
     return { id };
   }
 
-  async approve(id: string, userId: string) {
-    const oldPurchaseOrder = await this.purchaseOrderModel.findById(id).exec();
+  async getMonthlyAnalytics(tenantId: string, months = 12) {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - months);
+    const result = await this.purchaseOrderModel.aggregate([
+      { $match: { tenantId, createdAt: { $gte: cutoff } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } },
+          total: { $sum: '$grand_total' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+    return result.map((r: any) => ({ month: r._id, total: r.total, count: r.count }));
+  }
+
+  async approve(id: string, userId: string, tenantId: string) {
+    const oldPurchaseOrder = await this.purchaseOrderModel
+      .findOne({ _id: id, tenantId })
+      .exec();
     const updatedPurchaseOrder = await this.purchaseOrderModel
-      .findByIdAndUpdate(
-        id,
+      .findOneAndUpdate(
+        { _id: id, tenantId },
         { status: 'approved', updatedBy: userId },
         { new: true },
       )
@@ -130,11 +173,9 @@ export class PurchaseOrdersService {
       action: 'approve',
       entity: 'purchase_order',
       entityId: id,
-
       oldValue: oldPurchaseOrder?.toObject(),
-
       newValue: updatedPurchaseOrder?.toObject(),
-      tenantId: 'furniture_world', // TODO: Get from context
+      tenantId,
     });
 
     return updatedPurchaseOrder;

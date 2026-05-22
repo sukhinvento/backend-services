@@ -24,6 +24,11 @@ export class RolesGuard implements CanActivate {
       return false;
     }
 
+    // Admin bypass — admin role has unrestricted access to all modules
+    if (user.roles.includes('admin')) {
+      return true;
+    }
+
     return requiredRoles.some((role) => user.roles?.includes(role));
   }
 }

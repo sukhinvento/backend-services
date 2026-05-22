@@ -6,23 +6,43 @@ export type StockTransferDocument = StockTransfer & Document;
 
 @Schema({ timestamps: true })
 export class StockTransfer extends BaseSchema {
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true })
   transfer_number: string;
 
-  @Prop({ required: true })
+  @Prop()
   from_location_id: string;
 
-  @Prop({ required: true })
+  @Prop()
+  from_location: string;
+
+  @Prop()
   to_location_id: string;
 
-  @Prop({ type: [MongooseSchema.Types.Mixed] })
+  @Prop()
+  to_location: string;
+
+  @Prop({ type: [MongooseSchema.Types.Mixed], default: [] })
   items: Record<string, any>[];
 
-  @Prop({ required: true })
-  status: 'draft' | 'pending' | 'in_transit' | 'completed' | 'cancelled';
+  @Prop({ default: 'draft' })
+  status: string;
+
+  @Prop()
+  notes: string;
+
+  @Prop({ default: 'low' })
+  priority: string;
+
+  @Prop()
+  expected_date: string;
+
+  @Prop({ required: true, index: true })
+  tenantId: string;
 
   @Prop({ type: MongooseSchema.Types.Mixed })
   custom_fields: Record<string, any>;
 }
 
 export const StockTransferSchema = SchemaFactory.createForClass(StockTransfer);
+StockTransferSchema.index({ tenantId: 1, transfer_number: 1 }, { unique: true });
+StockTransferSchema.index({ tenantId: 1, status: 1 });

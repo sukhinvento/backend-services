@@ -35,6 +35,11 @@ export class ScopesGuard implements CanActivate {
       return false;
     }
 
+    // Admin bypass — admin role has unrestricted access regardless of JWT scopes
+    if (user.roles?.includes('admin')) {
+      return true;
+    }
+
     // Use scopes from JWT token if available (preferred method)
     if (user.scopes) {
       return requiredScopes.some((scope) => user.scopes.includes(scope));

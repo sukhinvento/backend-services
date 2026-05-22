@@ -16,6 +16,14 @@ import { AuthModule } from './auth/auth.module';
 import { AuditModule } from './audit/audit.module';
 import { CommonModule } from './common/common.module';
 import { TaxModule } from './tax/tax.module';
+import { PatientsModule } from './patients/patients.module';
+import { DoctorsModule } from './doctors/doctors.module';
+import { RoomsModule } from './rooms/rooms.module';
+import { AdmissionsModule } from './admissions/admissions.module';
+import { DiagnosticsModule } from './diagnostics/diagnostics.module';
+import { MedicationsModule } from './medications/medications.module';
+import { HospitalBillingModule } from './hospital-billing/hospital-billing.module';
+import { InventoryModule } from './inventory/inventory.module';
 
 @Module({
   imports: [
@@ -34,6 +42,14 @@ import { TaxModule } from './tax/tax.module';
     AuthModule,
     AuditModule,
     CommonModule,
+    PatientsModule,
+    DoctorsModule,
+    RoomsModule,
+    AdmissionsModule,
+    DiagnosticsModule,
+    MedicationsModule,
+    HospitalBillingModule,
+    InventoryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

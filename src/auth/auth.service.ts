@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -35,6 +35,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Validate that user has a tenantId
+    if (!user.tenantId) {
+      throw new UnauthorizedException('User not associated with any tenant');
+    }
+
     // Compare the plain text password with the hashed password
     const isPasswordValid = await bcrypt.compare(
       loginDto.password,
@@ -54,12 +59,14 @@ export class AuthService {
       sub: user.id as string,
       roles: userRoles.map((r) => r.name),
       scopes: scopes,
+      tenantId: user.tenantId,
     };
 
     return {
       access_token: this.jwtService.sign(payload),
       roles: userRoles.map((role) => role.name),
       scopes,
+      tenantId: user.tenantId,
     };
   }
 
@@ -67,7 +74,29 @@ export class AuthService {
     return { message: 'Logged out successfully' };
   }
 
-  async createUser(createUserDto: CreateUserDto, authUserId: string) {
+  async createUser(createUserDto: CreateUserDto, authUserId: string, authTenantId: string) {
+    // Validate tenantId is provided
+    if (!createUserDto.tenantId) {
+      throw new BadRequestException('TenantId is required for user creation');
+    }
+
+    // Check if the creating user has permission to create users for this tenant
+    // For now, we'll allow if the tenantId matches the auth user's tenantId
+    // In a more complex scenario, you might want to check if the user is a super admin
+    if (createUserDto.tenantId !== authTenantId) {
+      throw new UnauthorizedException('Cannot create user for different tenant');
+    }
+
+    // Check for duplicate username within the same tenant
+    const existingUser = await this.userModel.findOne({
+      username: createUserDto.username,
+      tenantId: createUserDto.tenantId,
+    }).exec();
+
+    if (existingUser) {
+      throw new BadRequestException('Username already exists in this tenant');
+    }
+
     // Hash the password before saving
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(
@@ -79,6 +108,7 @@ export class AuthService {
       username: createUserDto.username,
       password_hash: hashedPassword,
       roles: createUserDto.roles,
+      tenantId: createUserDto.tenantId,
       createdBy: authUserId,
       updatedBy: authUserId,
     });
@@ -91,26 +121,44 @@ export class AuthService {
       entityId: savedUser.id as string,
 
       newValue: savedUser.toObject() as User,
-      tenantId: 'system',
+      tenantId: authTenantId,
     });
 
     return savedUser;
   }
 
-  async findAllUsers(query: QueryDto) {
-    return this.queryBuilder.buildQuery(this.userModel, query).exec();
+  async findAllUsers(query: QueryDto, tenantId: string) {
+    // Add tenantId filter to the query
+    const queryWithTenant = {
+      ...query,
+      filter: {
+        ...query.filter,
+        tenantId,
+      },
+    };
+    return this.queryBuilder.buildQuery(this.userModel, queryWithTenant).exec();
   }
 
-  async findOneUser(id: string) {
-    return this.userModel.findById(id).exec();
+  async findOneUser(id: string, tenantId: string) {
+    return this.userModel.findOne({ _id: id, tenantId }).exec();
   }
 
   async updateUser(
     id: string,
     updateUserDto: UpdateUserDto,
     authUserId: string,
+    authTenantId: string,
   ) {
-    const oldUser = await this.userModel.findById(id).exec();
+    const oldUser = await this.userModel.findOne({ _id: id, tenantId: authTenantId }).exec();
+    if (!oldUser) {
+      throw new Error('User not found or access denied');
+    }
+
+    // If updating tenantId, validate the new tenantId
+    if (updateUserDto.tenantId && updateUserDto.tenantId !== authTenantId) {
+      throw new UnauthorizedException('Cannot change user to different tenant');
+    }
+
     const updatedUser = await this.userModel
       .findByIdAndUpdate(
         id,
@@ -128,14 +176,17 @@ export class AuthService {
       oldValue: oldUser?.toObject() as User,
 
       newValue: updatedUser?.toObject() as User,
-      tenantId: 'system',
+      tenantId: authTenantId,
     });
 
     return updatedUser;
   }
 
-  async removeUser(id: string, authUserId: string) {
-    const removedUser = await this.userModel.findByIdAndDelete(id).exec();
+  async removeUser(id: string, authUserId: string, authTenantId: string) {
+    const removedUser = await this.userModel.findOneAndDelete({ _id: id, tenantId: authTenantId }).exec();
+    if (!removedUser) {
+      throw new Error('User not found or access denied');
+    }
 
     void this.auditService.log({
       userId: authUserId,
@@ -144,7 +195,7 @@ export class AuthService {
       entityId: id,
 
       oldValue: removedUser?.toObject() as User,
-      tenantId: 'system',
+      tenantId: authTenantId,
     });
 
     return { id };

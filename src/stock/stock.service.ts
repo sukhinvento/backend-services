@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreateStockTransferDto } from './dto/create-stock-transfer.dto';
@@ -22,121 +22,237 @@ export class StockService {
     private readonly queryBuilder: QueryBuilderService<any>,
   ) {}
 
-  // Stock Transfer Methods
-  async createTransfer(createStockTransferDto: CreateStockTransferDto, userId: string) {
-    const tenantId = 'pharma_inc';
-    const fieldConfigs = await this.tenantsService.getFieldConfiguration(
-      tenantId,
-      'stock_transfer',
-    );
+  // ─── Stock Transfer Methods ────────────────────────────────────────────────
 
+  async createTransfer(dto: CreateStockTransferDto, userId: string, tenantId: string) {
+    const fieldConfigs = await this.tenantsService.getFieldConfiguration(tenantId, 'stock_transfer');
     for (const fieldConfig of fieldConfigs) {
-      if (
-        fieldConfig.required &&
-        !createStockTransferDto.custom_fields?.[fieldConfig.field_id]
-      ) {
+      if (fieldConfig.required && !dto.custom_fields?.[fieldConfig.field_id]) {
         throw new BadRequestException(`${fieldConfig.label} is required.`);
       }
     }
 
+    const transfer_number = dto.transfer_number || `TRF-${tenantId.toUpperCase().slice(0, 6)}-${Date.now()}`;
+
     const newTransfer = new this.stockTransferModel({
-      ...createStockTransferDto,
+      ...dto,
+      transfer_number,
+      status: dto.status || 'draft',
+      tenantId,
       createdBy: userId,
       updatedBy: userId,
     });
-    const savedTransfer = await newTransfer.save();
+    const saved = await newTransfer.save();
 
     void this.auditService.log({
       userId,
       action: 'create',
       entity: 'stock_transfer',
-      entityId: savedTransfer.id as string,
-      newValue: savedTransfer.toObject(),
+      entityId: saved.id as string,
+      newValue: saved.toObject(),
       tenantId,
     });
 
-    return savedTransfer;
+    return saved;
   }
 
-  async listTransfers(query: QueryDto) {
-    return this.queryBuilder.buildQuery(this.stockTransferModel, query).exec();
+  async listTransfers(query: QueryDto, tenantId: string) {
+    const filter = { ...(query.filter || {}), tenantId };
+    return this.queryBuilder
+      .buildQuery(this.stockTransferModel, { ...query, filter })
+      .exec();
   }
 
-  async completeTransfer(id: string, userId: string) {
-    const transfer = await this.stockTransferModel.findByIdAndUpdate(
-      id,
+  async findOneTransfer(id: string, tenantId: string) {
+    const transfer = await this.stockTransferModel.findOne({ _id: id, tenantId }).exec();
+    if (!transfer) throw new NotFoundException(`Stock transfer ${id} not found`);
+    return transfer;
+  }
+
+  async updateTransfer(id: string, dto: UpdateStockTransferDto, userId: string, tenantId: string) {
+    await this.findOneTransfer(id, tenantId);
+
+    const updated = await this.stockTransferModel.findOneAndUpdate(
+      { _id: id, tenantId },
+      { ...dto, updatedBy: userId },
+      { new: true },
+    ).exec();
+
+    void this.auditService.log({
+      userId,
+      action: 'update',
+      entity: 'stock_transfer',
+      entityId: id,
+      newValue: dto,
+      tenantId,
+    });
+
+    return updated;
+  }
+
+  async deleteTransfer(id: string, userId: string, tenantId: string) {
+    const transfer = await this.findOneTransfer(id, tenantId);
+
+    await this.stockTransferModel.findOneAndDelete({ _id: id, tenantId }).exec();
+
+    void this.auditService.log({
+      userId,
+      action: 'delete',
+      entity: 'stock_transfer',
+      entityId: id,
+      oldValue: transfer.toObject(),
+      tenantId,
+    });
+
+    return { id };
+  }
+
+  async completeTransfer(id: string, userId: string, tenantId: string) {
+    const transfer = await this.stockTransferModel.findOneAndUpdate(
+      { _id: id, tenantId },
       { status: 'completed', updatedBy: userId },
       { new: true },
     ).exec();
+
+    if (!transfer) throw new NotFoundException(`Stock transfer ${id} not found`);
 
     void this.auditService.log({
       userId,
       action: 'complete',
       entity: 'stock_transfer',
       entityId: id,
-      oldValue: { status: 'pending' },
       newValue: { status: 'completed' },
-      tenantId: 'pharma_inc',
+      tenantId,
     });
 
     return transfer;
   }
 
-  // Stock Adjustment Methods
-  async createAdjustment(createStockAdjustmentDto: CreateStockAdjustmentDto, userId: string) {
-    const tenantId = 'pharma_inc';
-    const fieldConfigs = await this.tenantsService.getFieldConfiguration(
-      tenantId,
-      'stock_adjustment',
-    );
+  async getTransferStats(tenantId: string) {
+    const transfers = await this.stockTransferModel.find({ tenantId }).lean().exec();
 
+    const totalTransfers = transfers.length;
+    const draftTransfers = transfers.filter(t => t.status === 'draft').length;
+    const pendingTransfers = transfers.filter(t => t.status === 'pending').length;
+    const inTransitTransfers = transfers.filter(t => t.status === 'in_transit').length;
+    const completedTransfers = transfers.filter(t => t.status === 'completed').length;
+    const cancelledTransfers = transfers.filter(t => t.status === 'cancelled').length;
+    const totalItems = transfers.reduce((sum, t) => sum + (Array.isArray(t.items) ? t.items.length : 0), 0);
+    const highPriorityTransfers = transfers.filter(t => t.priority === 'high' || t.priority === 'urgent').length;
+
+    return {
+      totalTransfers,
+      draftTransfers,
+      pendingTransfers,
+      inTransitTransfers,
+      completedTransfers,
+      cancelledTransfers,
+      totalItems,
+      highPriorityTransfers,
+    };
+  }
+
+  // ─── Stock Adjustment Methods ──────────────────────────────────────────────
+
+  async createAdjustment(dto: CreateStockAdjustmentDto, userId: string, tenantId: string) {
+    const fieldConfigs = await this.tenantsService.getFieldConfiguration(tenantId, 'stock_adjustment');
     for (const fieldConfig of fieldConfigs) {
-      if (
-        fieldConfig.required &&
-        !createStockAdjustmentDto.custom_fields?.[fieldConfig.field_id]
-      ) {
+      if (fieldConfig.required && !dto.custom_fields?.[fieldConfig.field_id]) {
         throw new BadRequestException(`${fieldConfig.label} is required.`);
       }
     }
 
+    const adjustment_number = dto.adjustment_number || `ADJ-${tenantId.toUpperCase().slice(0, 6)}-${Date.now()}`;
+
     const newAdjustment = new this.stockAdjustmentModel({
-      ...createStockAdjustmentDto,
+      ...dto,
+      adjustment_number,
+      status: 'draft',
+      tenantId,
       createdBy: userId,
       updatedBy: userId,
     });
-    const savedAdjustment = await newAdjustment.save();
+    const saved = await newAdjustment.save();
 
     void this.auditService.log({
       userId,
       action: 'create',
       entity: 'stock_adjustment',
-      entityId: savedAdjustment.id as string,
-      newValue: savedAdjustment.toObject(),
+      entityId: saved.id as string,
+      newValue: saved.toObject(),
       tenantId,
     });
 
-    return savedAdjustment;
+    return saved;
   }
 
-  async listAdjustments(query: QueryDto) {
-    return this.queryBuilder.buildQuery(this.stockAdjustmentModel, query).exec();
+  async listAdjustments(query: QueryDto, tenantId: string) {
+    const filter = { ...(query.filter || {}), tenantId };
+    return this.queryBuilder
+      .buildQuery(this.stockAdjustmentModel, { ...query, filter })
+      .exec();
   }
 
-  async applyAdjustment(id: string, userId: string) {
-    const adjustment = await this.stockAdjustmentModel.findByIdAndUpdate(
-      id,
+  async findOneAdjustment(id: string, tenantId: string) {
+    const adjustment = await this.stockAdjustmentModel.findOne({ _id: id, tenantId }).exec();
+    if (!adjustment) throw new NotFoundException(`Stock adjustment ${id} not found`);
+    return adjustment;
+  }
+
+  async updateAdjustment(id: string, dto: UpdateStockAdjustmentDto, userId: string, tenantId: string) {
+    await this.findOneAdjustment(id, tenantId);
+
+    const updated = await this.stockAdjustmentModel.findOneAndUpdate(
+      { _id: id, tenantId },
+      { ...dto, updatedBy: userId },
+      { new: true },
+    ).exec();
+
+    void this.auditService.log({
+      userId,
+      action: 'update',
+      entity: 'stock_adjustment',
+      entityId: id,
+      newValue: dto,
+      tenantId,
+    });
+
+    return updated;
+  }
+
+  async deleteAdjustment(id: string, userId: string, tenantId: string) {
+    const adjustment = await this.findOneAdjustment(id, tenantId);
+
+    await this.stockAdjustmentModel.findOneAndDelete({ _id: id, tenantId }).exec();
+
+    void this.auditService.log({
+      userId,
+      action: 'delete',
+      entity: 'stock_adjustment',
+      entityId: id,
+      oldValue: adjustment.toObject(),
+      tenantId,
+    });
+
+    return { id };
+  }
+
+  async applyAdjustment(id: string, userId: string, tenantId: string) {
+    const adjustment = await this.stockAdjustmentModel.findOneAndUpdate(
+      { _id: id, tenantId },
       { status: 'applied', updatedBy: userId },
       { new: true },
     ).exec();
+
+    if (!adjustment) throw new NotFoundException(`Stock adjustment ${id} not found`);
 
     void this.auditService.log({
       userId,
       action: 'apply',
       entity: 'stock_adjustment',
       entityId: id,
-      oldValue: { status: 'pending' },
       newValue: { status: 'applied' },
-      tenantId: 'pharma_inc',
+      tenantId,
     });
 
     return adjustment;

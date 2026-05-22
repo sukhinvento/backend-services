@@ -16,7 +16,7 @@ import { UpdateVendorDto } from './dto/update-vendor.dto';
 import type { RequestWithUser } from '@common/interfaces/request-with-user.interface';
 import { JwtAuthGuard } from '@auth/jwt-auth.guard';
 import { RolesGuard, ScopesGuard } from '@common/guards';
-import { Roles, Scopes } from '@common/decorators';
+import { Roles, Scopes, TenantId } from '@common/decorators';
 import { Role, Scope } from '@common/enums';
 import {
   ApiTags,
@@ -59,9 +59,10 @@ export class VendorsController {
   create(
     @Body() createVendorDto: CreateVendorDto,
     @Req() req: RequestWithUser,
+    @TenantId() tenantId: string,
   ) {
     const userId = req.user.userId;
-    return this.vendorsService.create(createVendorDto, userId);
+    return this.vendorsService.create(createVendorDto, userId, tenantId);
   }
 
   @ApiOperation({
@@ -82,9 +83,98 @@ export class VendorsController {
   @Get()
   @Scopes(Scope.VENDORS)
   @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.VIEWER)
-  findAll(@Query() query: Omit<QueryDto, 'filter'>) {
-    const { page, limit, sort, ...filter } = query;
-    return this.vendorsService.findAll({ page, limit, sort, filter });
+  findAll(@Query() query: QueryDto, @TenantId() tenantId: string) {
+    const { page, limit, sort, filter } = query;
+    // If filter is a string (JSON), parse it
+    let parsedFilter = filter;
+    if (typeof filter === 'string') {
+      try {
+        parsedFilter = JSON.parse(filter);
+      } catch (e) {
+        // If parsing fails, treat as empty filter
+        parsedFilter = {};
+      }
+    }
+    return this.vendorsService.findAll({ page, limit, sort, filter: parsedFilter || {} }, tenantId);
+  }
+
+  @ApiOperation({
+    summary: 'Search vendors by term',
+    description: 'Search vendors by name, code, or other fields',
+  })
+  @ApiQuery({ name: 'q', description: 'Search term', required: true })
+  @ApiQuery({ name: 'page', description: 'Page number', required: false })
+  @ApiQuery({ name: 'limit', description: 'Items per page', required: false })
+  @ApiResponse({
+    status: 200,
+    description: 'Search results retrieved successfully',
+    type: [VendorResponseDto],
+  })
+  @Get('search')
+  @Scopes(Scope.VENDORS)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.VIEWER)
+  searchVendors(
+    @Query('q') searchTerm: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @TenantId() tenantId: string,
+  ) {
+    return this.vendorsService.searchVendors(searchTerm, tenantId, page, limit);
+  }
+
+  @ApiOperation({
+    summary: 'Get vendors by tax slab',
+    description: 'Get vendors that support a specific tax slab',
+  })
+  @ApiParam({ name: 'taxSlab', description: 'Tax slab identifier' })
+  @ApiResponse({
+    status: 200,
+    description: 'Vendors retrieved successfully',
+    type: [VendorResponseDto],
+  })
+  @Get('by-tax-slab/:taxSlab')
+  @Scopes(Scope.VENDORS)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.VIEWER)
+  getVendorsByTaxSlab(
+    @Param('taxSlab') taxSlab: string,
+    @TenantId() tenantId: string,
+  ) {
+    return this.vendorsService.getVendorsByTaxSlab(taxSlab, tenantId);
+  }
+
+  @ApiOperation({
+    summary: 'Get vendors by maximum lead time',
+    description: 'Get vendors with lead time less than or equal to specified days',
+  })
+  @ApiParam({ name: 'maxLeadTime', description: 'Maximum lead time in days' })
+  @ApiResponse({
+    status: 200,
+    description: 'Vendors retrieved successfully',
+    type: [VendorResponseDto],
+  })
+  @Get('by-lead-time/:maxLeadTime')
+  @Scopes(Scope.VENDORS)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.VIEWER)
+  getVendorsByLeadTime(
+    @Param('maxLeadTime') maxLeadTime: number,
+    @TenantId() tenantId: string,
+  ) {
+    return this.vendorsService.getVendorsByLeadTime(maxLeadTime, tenantId);
+  }
+
+  @ApiOperation({
+    summary: 'Get available filter fields',
+    description: 'Get list of available fields for filtering vendors',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Filter fields retrieved successfully',
+  })
+  @Get('filter-fields')
+  @Scopes(Scope.VENDORS)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.VIEWER)
+  getAvailableFilterFields() {
+    return this.vendorsService.getAvailableFilterFields();
   }
 
   @ApiOperation({
@@ -106,8 +196,8 @@ export class VendorsController {
   @Get(':id')
   @Scopes(Scope.VENDORS)
   @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.VIEWER)
-  findOne(@Param('id') id: string) {
-    return this.vendorsService.findOne(id);
+  findOne(@Param('id') id: string, @TenantId() tenantId: string) {
+    return this.vendorsService.findOne(id, tenantId);
   }
 
   @Patch(':id')
@@ -117,16 +207,17 @@ export class VendorsController {
     @Param('id') id: string,
     @Body() updateVendorDto: UpdateVendorDto,
     @Req() req: RequestWithUser,
+    @TenantId() tenantId: string,
   ) {
     const userId = req.user.userId;
-    return this.vendorsService.update(id, updateVendorDto, userId);
+    return this.vendorsService.update(id, updateVendorDto, userId, tenantId);
   }
 
   @Delete(':id')
   @Scopes(Scope.VENDORS)
   @Roles(Role.ADMIN)
-  remove(@Param('id') id: string, @Req() req: RequestWithUser) {
+  remove(@Param('id') id: string, @Req() req: RequestWithUser, @TenantId() tenantId: string) {
     const userId = req.user.userId;
-    return this.vendorsService.remove(id, userId);
+    return this.vendorsService.remove(id, userId, tenantId);
   }
 }

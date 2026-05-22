@@ -18,12 +18,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     username: string;
     roles: string[];
     scopes: string[];
+    tenantId: string;
   }) {
     return {
       userId: payload.sub,
       username: payload.username,
       roles: payload.roles,
       scopes: payload.scopes,
+      tenantId: payload.tenantId,
     };
   }
 }

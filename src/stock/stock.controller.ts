@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Patch,
+  Delete,
   Param,
   Put,
   Req,
@@ -38,129 +39,135 @@ import { QueryDto } from '@common/dto/query.dto';
 export class StockController {
   constructor(private readonly stockService: StockService) {}
 
-  // Stock Transfer Endpoints
-  @ApiOperation({
-    summary: 'Create a stock transfer between locations',
-    description: 'Creates a new stock transfer (Admin/Manager only)',
-  })
+  // ─── Stock Transfer Endpoints ─────────────────────────────────────────────
+
+  @ApiOperation({ summary: 'Create a stock transfer' })
   @ApiBody({ type: CreateStockTransferDto })
-  @ApiResponse({
-    status: 201,
-    description: 'Stock transfer created successfully',
-  })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 201, description: 'Stock transfer created' })
   @Post('transfers')
   @Scopes(Scope.PURCHASE_ORDERS)
   @Roles(Role.ADMIN, Role.MANAGER)
-  createTransfer(
-    @Body() createStockTransferDto: CreateStockTransferDto,
-    @Req() req: RequestWithUser,
-  ) {
-    const userId = req.user.userId;
-    return this.stockService.createTransfer(createStockTransferDto, userId);
+  createTransfer(@Body() dto: CreateStockTransferDto, @Req() req: RequestWithUser) {
+    return this.stockService.createTransfer(dto, req.user.userId, req.user.tenantId);
   }
 
-  @ApiOperation({
-    summary: 'List stock transfers',
-    description: 'Retrieves all stock transfers',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'List of stock transfers retrieved successfully',
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiOperation({ summary: 'List stock transfers' })
   @ApiQuery({ name: 'query', type: QueryDto })
   @Get('transfers')
   @Scopes(Scope.PURCHASE_ORDERS)
   @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.VIEWER)
-  listTransfers(@Query() query: Omit<QueryDto, 'filter'>) {
+  listTransfers(@Query() query: Omit<QueryDto, 'filter'>, @Req() req: RequestWithUser) {
     const { page, limit, sort, ...filter } = query;
-    return this.stockService.listTransfers({ page, limit, sort, filter });
+    return this.stockService.listTransfers({ page, limit, sort, filter }, req.user.tenantId);
   }
 
-  @ApiOperation({
-    summary: 'Mark a stock transfer as completed',
-    description: 'Completes a stock transfer (Admin/Manager only)',
-  })
+  @ApiOperation({ summary: 'Get stock transfer stats' })
+  @Get('transfers/stats')
+  @Scopes(Scope.PURCHASE_ORDERS)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.VIEWER)
+  getTransferStats(@Req() req: RequestWithUser) {
+    return this.stockService.getTransferStats(req.user.tenantId);
+  }
+
+  @ApiOperation({ summary: 'Get a single stock transfer' })
   @ApiParam({ name: 'id', description: 'Transfer ID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Stock transfer completed successfully',
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 404, description: 'Transfer not found' })
+  @Get('transfers/:id')
+  @Scopes(Scope.PURCHASE_ORDERS)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.VIEWER)
+  findOneTransfer(@Param('id') id: string, @Req() req: RequestWithUser) {
+    return this.stockService.findOneTransfer(id, req.user.tenantId);
+  }
+
+  @ApiOperation({ summary: 'Update a stock transfer' })
+  @ApiParam({ name: 'id', description: 'Transfer ID' })
+  @Patch('transfers/:id')
+  @Scopes(Scope.PURCHASE_ORDERS)
+  @Roles(Role.ADMIN, Role.MANAGER)
+  updateTransfer(
+    @Param('id') id: string,
+    @Body() dto: UpdateStockTransferDto,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.stockService.updateTransfer(id, dto, req.user.userId, req.user.tenantId);
+  }
+
+  @ApiOperation({ summary: 'Delete a stock transfer' })
+  @ApiParam({ name: 'id', description: 'Transfer ID' })
+  @Delete('transfers/:id')
+  @Scopes(Scope.PURCHASE_ORDERS)
+  @Roles(Role.ADMIN, Role.MANAGER)
+  deleteTransfer(@Param('id') id: string, @Req() req: RequestWithUser) {
+    return this.stockService.deleteTransfer(id, req.user.userId, req.user.tenantId);
+  }
+
+  @ApiOperation({ summary: 'Mark a stock transfer as completed' })
+  @ApiParam({ name: 'id', description: 'Transfer ID' })
   @Put('transfers/:id/complete')
   @Scopes(Scope.PURCHASE_ORDERS)
   @Roles(Role.ADMIN, Role.MANAGER)
   completeTransfer(@Param('id') id: string, @Req() req: RequestWithUser) {
-    const userId = req.user.userId;
-    return this.stockService.completeTransfer(id, userId);
+    return this.stockService.completeTransfer(id, req.user.userId, req.user.tenantId);
   }
 
-  // Stock Adjustment Endpoints
-  @ApiOperation({
-    summary: 'Create a stock adjustment',
-    description: 'Creates a new stock adjustment (Admin/Manager only)',
-  })
+  // ─── Stock Adjustment Endpoints ───────────────────────────────────────────
+
+  @ApiOperation({ summary: 'Create a stock adjustment' })
   @ApiBody({ type: CreateStockAdjustmentDto })
-  @ApiResponse({
-    status: 201,
-    description: 'Stock adjustment created successfully',
-  })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 201, description: 'Stock adjustment created' })
   @Post('adjustments')
   @Scopes(Scope.PURCHASE_ORDERS)
   @Roles(Role.ADMIN, Role.MANAGER)
-  createAdjustment(
-    @Body() createStockAdjustmentDto: CreateStockAdjustmentDto,
-    @Req() req: RequestWithUser,
-  ) {
-    const userId = req.user.userId;
-    return this.stockService.createAdjustment(createStockAdjustmentDto, userId);
+  createAdjustment(@Body() dto: CreateStockAdjustmentDto, @Req() req: RequestWithUser) {
+    return this.stockService.createAdjustment(dto, req.user.userId, req.user.tenantId);
   }
 
-  @ApiOperation({
-    summary: 'List stock adjustments',
-    description: 'Retrieves all stock adjustments',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'List of stock adjustments retrieved successfully',
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiOperation({ summary: 'List stock adjustments' })
   @ApiQuery({ name: 'query', type: QueryDto })
   @Get('adjustments')
   @Scopes(Scope.PURCHASE_ORDERS)
   @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.VIEWER)
-  listAdjustments(@Query() query: Omit<QueryDto, 'filter'>) {
+  listAdjustments(@Query() query: Omit<QueryDto, 'filter'>, @Req() req: RequestWithUser) {
     const { page, limit, sort, ...filter } = query;
-    return this.stockService.listAdjustments({ page, limit, sort, filter });
+    return this.stockService.listAdjustments({ page, limit, sort, filter }, req.user.tenantId);
   }
 
-  @ApiOperation({
-    summary: 'Apply a stock adjustment',
-    description: 'Applies a stock adjustment (Admin/Manager only)',
-  })
+  @ApiOperation({ summary: 'Get a single stock adjustment' })
   @ApiParam({ name: 'id', description: 'Adjustment ID' })
-  @ApiResponse({
-    status: 200,
-    description: 'Stock adjustment applied successfully',
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 404, description: 'Adjustment not found' })
+  @Get('adjustments/:id')
+  @Scopes(Scope.PURCHASE_ORDERS)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.VIEWER)
+  findOneAdjustment(@Param('id') id: string, @Req() req: RequestWithUser) {
+    return this.stockService.findOneAdjustment(id, req.user.tenantId);
+  }
+
+  @ApiOperation({ summary: 'Update a stock adjustment' })
+  @ApiParam({ name: 'id', description: 'Adjustment ID' })
+  @Patch('adjustments/:id')
+  @Scopes(Scope.PURCHASE_ORDERS)
+  @Roles(Role.ADMIN, Role.MANAGER)
+  updateAdjustment(
+    @Param('id') id: string,
+    @Body() dto: UpdateStockAdjustmentDto,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.stockService.updateAdjustment(id, dto, req.user.userId, req.user.tenantId);
+  }
+
+  @ApiOperation({ summary: 'Delete a stock adjustment' })
+  @ApiParam({ name: 'id', description: 'Adjustment ID' })
+  @Delete('adjustments/:id')
+  @Scopes(Scope.PURCHASE_ORDERS)
+  @Roles(Role.ADMIN, Role.MANAGER)
+  deleteAdjustment(@Param('id') id: string, @Req() req: RequestWithUser) {
+    return this.stockService.deleteAdjustment(id, req.user.userId, req.user.tenantId);
+  }
+
+  @ApiOperation({ summary: 'Apply a stock adjustment' })
+  @ApiParam({ name: 'id', description: 'Adjustment ID' })
   @Put('adjustments/:id/apply')
   @Scopes(Scope.PURCHASE_ORDERS)
   @Roles(Role.ADMIN, Role.MANAGER)
   applyAdjustment(@Param('id') id: string, @Req() req: RequestWithUser) {
-    const userId = req.user.userId;
-    return this.stockService.applyAdjustment(id, userId);
+    return this.stockService.applyAdjustment(id, req.user.userId, req.user.tenantId);
   }
 }

@@ -16,9 +16,9 @@ import { UpdatePurchaseOrderDto } from './dto/update-purchase-order.dto';
 import type { RequestWithUser } from '@common/interfaces/request-with-user.interface';
 import { JwtAuthGuard } from '@auth/jwt-auth.guard';
 import { RolesGuard, ScopesGuard } from '@common/guards';
-import { Roles, Scopes } from '@common/decorators';
+import { Roles, Scopes, TenantId } from '@common/decorators';
 import { Role, Scope } from '@common/enums';
-import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiQuery, ApiOperation } from '@nestjs/swagger';
 import { QueryDto } from '@common/dto/query.dto';
 
 @ApiTags('purchase-orders')
@@ -34,25 +34,48 @@ export class PurchaseOrdersController {
   create(
     @Body() createPurchaseOrderDto: CreatePurchaseOrderDto,
     @Req() req: RequestWithUser,
+    @TenantId() tenantId: string,
   ) {
-    const userId = req.user.userId;
-    return this.purchaseOrdersService.create(createPurchaseOrderDto, userId);
+    return this.purchaseOrdersService.create(
+      createPurchaseOrderDto,
+      req.user.userId,
+      tenantId,
+    );
   }
 
   @Get()
   @Scopes(Scope.PURCHASE_ORDERS)
-  @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.USER)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.USER)
   @ApiQuery({ name: 'query', type: QueryDto })
-  findAll(@Query() query: Omit<QueryDto, 'filter'>) {
+  findAll(
+    @Query() query: Omit<QueryDto, 'filter'>,
+    @TenantId() tenantId: string,
+  ) {
     const { page, limit, sort, ...filter } = query;
-    return this.purchaseOrdersService.findAll({ page, limit, sort, filter });
+    return this.purchaseOrdersService.findAll({ page, limit, sort, filter }, tenantId);
+  }
+
+  @Get('stats')
+  @Scopes(Scope.PURCHASE_ORDERS)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.USER)
+  getStats(@TenantId() tenantId: string) {
+    return this.purchaseOrdersService.getStats(tenantId);
+  }
+
+  @Get('analytics/monthly')
+  @Scopes(Scope.PURCHASE_ORDERS)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.VIEWER)
+  @ApiOperation({ summary: 'Get monthly PO totals for the last N months' })
+  @ApiQuery({ name: 'months', required: false })
+  getMonthlyAnalytics(@TenantId() tenantId: string, @Query('months') months?: string) {
+    return this.purchaseOrdersService.getMonthlyAnalytics(tenantId, months ? parseInt(months, 10) : 12);
   }
 
   @Get(':id')
   @Scopes(Scope.PURCHASE_ORDERS)
-  @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.USER)
-  findOne(@Param('id') id: string) {
-    return this.purchaseOrdersService.findOne(id);
+  @Roles(Role.ADMIN, Role.MANAGER, Role.USER)
+  findOne(@Param('id') id: string, @TenantId() tenantId: string) {
+    return this.purchaseOrdersService.findOne(id, tenantId);
   }
 
   @Patch(':id')
@@ -62,28 +85,35 @@ export class PurchaseOrdersController {
     @Param('id') id: string,
     @Body() updatePurchaseOrderDto: UpdatePurchaseOrderDto,
     @Req() req: RequestWithUser,
+    @TenantId() tenantId: string,
   ) {
-    const userId = req.user.userId;
     return this.purchaseOrdersService.update(
       id,
       updatePurchaseOrderDto,
-      userId,
+      req.user.userId,
+      tenantId,
     );
   }
 
   @Delete(':id')
   @Scopes(Scope.PURCHASE_ORDERS)
   @Roles(Role.ADMIN)
-  remove(@Param('id') id: string, @Req() req: RequestWithUser) {
-    const userId = req.user.userId;
-    return this.purchaseOrdersService.remove(id, userId);
+  remove(
+    @Param('id') id: string,
+    @Req() req: RequestWithUser,
+    @TenantId() tenantId: string,
+  ) {
+    return this.purchaseOrdersService.remove(id, req.user.userId, tenantId);
   }
 
   @Post(':id/approve')
   @Scopes(Scope.PURCHASE_ORDERS)
   @Roles(Role.ADMIN, Role.MANAGER)
-  approve(@Param('id') id: string, @Req() req: RequestWithUser) {
-    const userId = req.user.userId;
-    return this.purchaseOrdersService.approve(id, userId);
+  approve(
+    @Param('id') id: string,
+    @Req() req: RequestWithUser,
+    @TenantId() tenantId: string,
+  ) {
+    return this.purchaseOrdersService.approve(id, req.user.userId, tenantId);
   }
 }

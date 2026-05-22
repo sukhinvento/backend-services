@@ -7,4 +7,12 @@ export enum Role {
   MANAGER = 'manager', // Access to business modules but limited user management
   USER = 'user', // Basic access to assigned modules
   VIEWER = 'viewer', // Read-only access to assigned modules
+
+  // Healthcare-specific roles
+  DOCTOR = 'doctor',
+  NURSE = 'nurse',
+  RECEPTIONIST = 'receptionist',
+  BILLING_STAFF = 'billing_staff',
+  LAB_TECHNICIAN = 'lab_technician',
+  PHARMACIST = 'pharmacist',
 }

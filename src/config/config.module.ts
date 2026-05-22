@@ -13,6 +13,8 @@ import * as Joi from 'joi';
         PORT: Joi.number().default(3000),
         JWT_SECRET: Joi.string().required(),
         MONGO_URI: Joi.string().required(),
+        ENCRYPTION_KEY: Joi.string().length(64).required(),
+        ENCRYPTION_HMAC_KEY: Joi.string().length(64).required(),
       }),
     }),
   ],

@@ -19,8 +19,9 @@ import { LoginDto } from './dto/login.dto';
 import type { RequestWithUser } from '@common/interfaces/request-with-user.interface';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard, ScopesGuard } from '@common/guards';
-import { Roles, Scopes } from '@common/decorators';
+import { Roles, Scopes, TenantId } from '@common/decorators';
 import { Role, Scope } from '@common/enums';
+import { ROLE_DEFAULT_SCOPES } from './permissions';
 import {
   ApiTags,
   ApiOperation,
@@ -37,6 +38,19 @@ import { QueryDto } from '@common/dto/query.dto';
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @ApiOperation({
+    summary: 'Get permissions matrix',
+    description: 'Returns the default role-to-scopes mapping for frontend permission UI (no auth required)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Permissions matrix returned successfully',
+  })
+  @Get('permissions/matrix')
+  getPermissionsMatrix() {
+    return ROLE_DEFAULT_SCOPES;
+  }
 
   @ApiOperation({
     summary: 'User login',
@@ -82,9 +96,10 @@ export class AuthController {
   createUser(
     @Body() createUserDto: CreateUserDto,
     @Req() req: RequestWithUser,
+    @TenantId() tenantId: string,
   ) {
     const userId = req.user.userId;
-    return this.authService.createUser(createUserDto, userId);
+    return this.authService.createUser(createUserDto, userId, tenantId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopesGuard)
@@ -103,9 +118,9 @@ export class AuthController {
   @Get('users')
   @Scopes(Scope.USER_MANAGEMENT)
   @Roles(Role.ADMIN)
-  findAllUsers(@Query() query: Omit<QueryDto, 'filter'>) {
+  findAllUsers(@Query() query: Omit<QueryDto, 'filter'>, @TenantId() tenantId: string) {
     const { page, limit, sort, ...filter } = query;
-    return this.authService.findAllUsers({ page, limit, sort, filter });
+    return this.authService.findAllUsers({ page, limit, sort, filter }, tenantId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopesGuard)
@@ -122,8 +137,8 @@ export class AuthController {
   @Get('users/:id')
   @Scopes(Scope.USER_MANAGEMENT)
   @Roles(Role.ADMIN)
-  findOneUser(@Param('id') id: string) {
-    return this.authService.findOneUser(id);
+  findOneUser(@Param('id') id: string, @TenantId() tenantId: string) {
+    return this.authService.findOneUser(id, tenantId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopesGuard)
@@ -146,9 +161,10 @@ export class AuthController {
     @Param('id') id: string,
     @Body() updateUserDto: UpdateUserDto,
     @Req() req: RequestWithUser,
+    @TenantId() tenantId: string,
   ) {
     const userId = req.user.userId;
-    return this.authService.updateUser(id, updateUserDto, userId);
+    return this.authService.updateUser(id, updateUserDto, userId, tenantId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopesGuard)
@@ -165,9 +181,9 @@ export class AuthController {
   @Delete('users/:id')
   @Scopes(Scope.USER_MANAGEMENT)
   @Roles(Role.ADMIN)
-  removeUser(@Param('id') id: string, @Req() req: RequestWithUser) {
+  removeUser(@Param('id') id: string, @Req() req: RequestWithUser, @TenantId() tenantId: string) {
     const userId = req.user.userId;
-    return this.authService.removeUser(id, userId);
+    return this.authService.removeUser(id, userId, tenantId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopesGuard)

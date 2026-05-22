@@ -6,5 +6,6 @@ export interface RequestWithUser extends Request {
     username: string;
     roles: string[];
     scopes: string[];
+    tenantId: string;
   };
 }

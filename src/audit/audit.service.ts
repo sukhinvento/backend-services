@@ -18,6 +18,8 @@ export class AuditService {
     const newAuditLog = new this.auditLogModel({
       ...logData,
       timestamp: new Date(),
+      createdBy: logData.userId, // Set createdBy from userId
+      updatedBy: logData.userId, // Set updatedBy from userId
     });
     await newAuditLog.save();
   }

@@ -13,6 +13,9 @@ export class Tenant extends BaseSchema {
   @Prop({ required: true, unique: true })
   name: string;
 
+  @Prop({ unique: true, sparse: true, index: true })
+  tenantId: string;
+
   @Prop({ type: Map, of: [FieldConfigurationSchema] })
   fieldConfigurations: Map<string, FieldConfiguration[]>;
 }

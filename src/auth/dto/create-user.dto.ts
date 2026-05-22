@@ -19,4 +19,10 @@ export class CreateUserDto {
     type: [String],
   })
   roles: string[];
+
+  @ApiProperty({
+    description: 'Tenant ID for the user',
+    example: 'pharma_inc',
+  })
+  tenantId: string;
 }

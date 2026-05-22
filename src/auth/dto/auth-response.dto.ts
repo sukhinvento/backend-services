@@ -20,16 +20,22 @@ export class AuthResponseDto {
   expires_in: number;
 
   @ApiProperty({
-    description: 'User information',
-    example: {
-      userId: '507f1f77bcf86cd799439011',
-      username: 'john.doe@company.com',
-      roles: ['admin', 'manager'],
-    },
+    description: 'User roles',
+    example: ['admin', 'manager'],
+    type: [String],
   })
-  user: {
-    userId: string;
-    username: string;
-    roles: string[];
-  };
+  roles: string[];
+
+  @ApiProperty({
+    description: 'User scopes',
+    example: ['users:read', 'users:write'],
+    type: [String],
+  })
+  scopes: string[];
+
+  @ApiProperty({
+    description: 'Tenant ID',
+    example: 'pharma_inc',
+  })
+  tenantId: string;
 }

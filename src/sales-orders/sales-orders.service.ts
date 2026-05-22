@@ -1,10 +1,9 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { UpdateSalesOrderDto } from './dto/update-sales-order.dto';
 import { SalesOrder, SalesOrderDocument } from './schemas/sales-order.schema';
-import { TenantsService } from '@tenants/tenants.service';
 import { AuditService } from '@audit/audit.service';
 import { QueryDto } from '@common/dto/query.dto';
 import { QueryBuilderService } from '@common/services/query-builder.service';
@@ -14,31 +13,19 @@ export class SalesOrdersService {
   constructor(
     @InjectModel(SalesOrder.name)
     private salesOrderModel: Model<SalesOrderDocument>,
-    private readonly tenantsService: TenantsService,
     private readonly auditService: AuditService,
     private readonly queryBuilder: QueryBuilderService<SalesOrderDocument>,
   ) {}
 
-  async create(createSalesOrderDto: CreateSalesOrderDto, userId: string) {
-    // TODO: Get tenant from request context
-    const tenantId = 'freshmart';
-    const fieldConfigs = await this.tenantsService.getFieldConfiguration(
-      tenantId,
-      'sales_order',
-    );
-
-    for (const fieldConfig of fieldConfigs) {
-      if (
-        fieldConfig.required &&
-        !createSalesOrderDto.custom_fields[fieldConfig.field_id]
-      ) {
-        throw new BadRequestException(`${fieldConfig.label} is required.`);
-      }
+  async create(createSalesOrderDto: CreateSalesOrderDto, userId: string, tenantId: string) {
+    if (!createSalesOrderDto.so_number) {
+      createSalesOrderDto.so_number = `SO-${tenantId.slice(0, 6).toUpperCase()}-${Date.now()}`;
     }
 
     const newSalesOrder = new this.salesOrderModel({
       ...createSalesOrderDto,
-      status: 'draft',
+      status: createSalesOrderDto.status || 'draft',
+      tenantId,
       createdBy: userId,
       updatedBy: userId,
     });
@@ -49,7 +36,6 @@ export class SalesOrdersService {
       action: 'create',
       entity: 'sales_order',
       entityId: savedSalesOrder.id as string,
-
       newValue: savedSalesOrder.toObject(),
       tenantId,
     });
@@ -57,19 +43,18 @@ export class SalesOrdersService {
     return savedSalesOrder;
   }
 
-  async findAll(query: QueryDto) {
-    return this.queryBuilder.buildQuery(this.salesOrderModel, query).exec();
+  async findAll(query: QueryDto, tenantId: string) {
+    const tenantFilter = { ...query.filter, tenantId };
+    return this.queryBuilder
+      .buildQuery(this.salesOrderModel, { ...query, filter: tenantFilter })
+      .exec();
   }
 
   async findOne(id: string) {
     return this.salesOrderModel.findById(id).exec();
   }
 
-  async update(
-    id: string,
-    updateSalesOrderDto: UpdateSalesOrderDto,
-    userId: string,
-  ) {
+  async update(id: string, updateSalesOrderDto: UpdateSalesOrderDto, userId: string, tenantId: string) {
     const oldSalesOrder = await this.salesOrderModel.findById(id).exec();
     const updatedSalesOrder = await this.salesOrderModel
       .findByIdAndUpdate(
@@ -84,81 +69,80 @@ export class SalesOrdersService {
       action: 'update',
       entity: 'sales_order',
       entityId: id,
-
       oldValue: oldSalesOrder?.toObject(),
-
       newValue: updatedSalesOrder?.toObject(),
-      tenantId: 'freshmart', // TODO: Get from context
+      tenantId,
     });
 
     return updatedSalesOrder;
   }
 
-  async remove(id: string, userId: string) {
-    const removedSalesOrder = await this.salesOrderModel
-      .findByIdAndDelete(id)
-      .exec();
+  async remove(id: string, userId: string, tenantId: string) {
+    const removedSalesOrder = await this.salesOrderModel.findByIdAndDelete(id).exec();
 
     void this.auditService.log({
       userId,
       action: 'delete',
       entity: 'sales_order',
       entityId: id,
-
       oldValue: removedSalesOrder?.toObject(),
-      tenantId: 'freshmart', // TODO: Get from context
+      tenantId,
     });
 
     return { id };
   }
 
   async ship(id: string, userId: string) {
-    const oldSalesOrder = await this.salesOrderModel.findById(id).exec();
-    const updatedSalesOrder = await this.salesOrderModel
-      .findByIdAndUpdate(
-        id,
-        { status: 'shipped', updatedBy: userId },
-        { new: true },
-      )
+    return this.salesOrderModel
+      .findByIdAndUpdate(id, { status: 'Shipped', updatedBy: userId }, { new: true })
       .exec();
-
-    void this.auditService.log({
-      userId,
-      action: 'ship',
-      entity: 'sales_order',
-      entityId: id,
-
-      oldValue: oldSalesOrder?.toObject(),
-
-      newValue: updatedSalesOrder?.toObject(),
-      tenantId: 'freshmart', // TODO: Get from context
-    });
-
-    return updatedSalesOrder;
   }
 
   async invoice(id: string, userId: string) {
-    const oldSalesOrder = await this.salesOrderModel.findById(id).exec();
-    const updatedSalesOrder = await this.salesOrderModel
-      .findByIdAndUpdate(
-        id,
-        { status: 'invoiced', updatedBy: userId },
-        { new: true },
-      )
+    return this.salesOrderModel
+      .findByIdAndUpdate(id, { status: 'Invoiced', updatedBy: userId }, { new: true })
       .exec();
+  }
 
-    void this.auditService.log({
-      userId,
-      action: 'invoice',
-      entity: 'sales_order',
-      entityId: id,
+  async getMonthlyAnalytics(tenantId: string, months = 12) {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - months);
+    const result = await this.salesOrderModel.aggregate([
+      { $match: { tenantId, createdAt: { $gte: cutoff } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } },
+          total: { $sum: '$grand_total' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+    return result.map((r: any) => ({ month: r._id, total: r.total, count: r.count }));
+  }
 
-      oldValue: oldSalesOrder?.toObject(),
+  async getStats(tenantId: string) {
+    const orders = await this.salesOrderModel.find({ tenantId }).exec();
 
-      newValue: updatedSalesOrder?.toObject(),
-      tenantId: 'freshmart', // TODO: Get from context
-    });
+    const totalOrders = orders.length;
+    const totalRevenue = orders.reduce((s, o) => s + (o.grand_total || 0), 0);
+    const processingOrders = orders.filter(o =>
+      ['draft', 'processing', 'Processing'].includes(o.status),
+    ).length;
+    const deliveredOrders = orders.filter(o =>
+      ['Delivered', 'delivered', 'invoiced', 'Invoiced'].includes(o.status),
+    ).length;
+    const pendingPayments = orders
+      .filter(o => ['Pending', 'pending'].includes(o.payment_status || ''))
+      .reduce((s, o) => s + (o.grand_total || 0), 0);
 
-    return updatedSalesOrder;
+    return {
+      totalOrders,
+      totalRevenue,
+      processingOrders,
+      deliveredOrders,
+      pendingPayments,
+      averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+    };
   }
 }

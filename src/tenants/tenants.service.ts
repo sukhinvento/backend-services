@@ -93,7 +93,7 @@ export class TenantsService {
     createFieldConfigurationDto: CreateFieldConfigurationDto,
     userId: string,
   ) {
-    const tenant = await this.tenantModel.findById(tenantId).exec();
+    const tenant = await this.findTenantByIdOrSlug(tenantId);
     if (!tenant) {
       throw new Error('Tenant not found');
     }
@@ -117,8 +117,16 @@ export class TenantsService {
     return savedTenant;
   }
 
+  private async findTenantByIdOrSlug(tenantId: string) {
+    const isObjectId = /^[0-9a-f]{24}$/i.test(tenantId);
+    if (isObjectId) {
+      return this.tenantModel.findById(tenantId).exec();
+    }
+    return this.tenantModel.findOne({ tenantId }).exec();
+  }
+
   async getFieldConfiguration(tenantId: string, module: string) {
-    const tenant = await this.tenantModel.findById(tenantId).exec();
-    return tenant?.fieldConfigurations.get(module) ?? [];
+    const tenant = await this.findTenantByIdOrSlug(tenantId);
+    return tenant?.fieldConfigurations?.get(module) ?? [];
   }
 }

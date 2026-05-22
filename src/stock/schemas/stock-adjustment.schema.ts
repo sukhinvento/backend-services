@@ -6,20 +6,31 @@ export type StockAdjustmentDocument = StockAdjustment & Document;
 
 @Schema({ timestamps: true })
 export class StockAdjustment extends BaseSchema {
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true })
   adjustment_number: string;
 
-  @Prop({ required: true })
+  @Prop()
   location_id: string;
 
-  @Prop({ type: [MongooseSchema.Types.Mixed] })
+  @Prop()
+  location: string;
+
+  @Prop({ type: [MongooseSchema.Types.Mixed], default: [] })
   items: Record<string, any>[];
 
-  @Prop({ required: true })
-  status: 'draft' | 'pending' | 'applied' | 'cancelled';
+  @Prop({ default: 'draft' })
+  status: string;
+
+  @Prop()
+  notes: string;
+
+  @Prop({ required: true, index: true })
+  tenantId: string;
 
   @Prop({ type: MongooseSchema.Types.Mixed })
   custom_fields: Record<string, any>;
 }
 
 export const StockAdjustmentSchema = SchemaFactory.createForClass(StockAdjustment);
+StockAdjustmentSchema.index({ tenantId: 1, adjustment_number: 1 }, { unique: true });
+StockAdjustmentSchema.index({ tenantId: 1, status: 1 });

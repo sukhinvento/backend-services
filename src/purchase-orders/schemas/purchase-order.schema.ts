@@ -6,20 +6,67 @@ export type PurchaseOrderDocument = PurchaseOrder & Document;
 
 @Schema({ timestamps: true })
 export class PurchaseOrder extends BaseSchema {
-  @Prop({ required: true, unique: true })
+  @Prop({ required: true })
   po_number: string;
 
-  @Prop({ required: true })
+  @Prop()
   vendor_id: string;
 
-  @Prop({ type: [MongooseSchema.Types.Mixed] })
+  @Prop()
+  vendor_name: string;
+
+  @Prop()
+  vendor_phone: string;
+
+  @Prop()
+  vendor_email: string;
+
+  @Prop()
+  vendor_address: string;
+
+  @Prop()
+  shipping_address: string;
+
+  @Prop()
+  order_date: string;
+
+  @Prop()
+  delivery_date: string;
+
+  @Prop()
+  fulfilment_date: string;
+
+  @Prop({ type: [MongooseSchema.Types.Mixed], default: [] })
   items: Record<string, any>[];
 
-  @Prop({ required: true })
-  status: 'draft' | 'approved' | 'fulfilled';
+  @Prop({ default: 0 })
+  grand_total: number;
+
+  @Prop({ default: 0 })
+  paid_amount: number;
+
+  @Prop()
+  payment_method: string;
+
+  @Prop()
+  notes: string;
+
+  @Prop()
+  approved_by: string;
+
+  @Prop({ type: [MongooseSchema.Types.Mixed], default: [] })
+  remarks: Record<string, any>[];
+
+  @Prop({ default: 'draft' })
+  status: string;
+
+  @Prop({ required: true, index: true })
+  tenantId: string;
 
   @Prop({ type: MongooseSchema.Types.Mixed })
   custom_fields: Record<string, any>;
 }
 
 export const PurchaseOrderSchema = SchemaFactory.createForClass(PurchaseOrder);
+PurchaseOrderSchema.index({ tenantId: 1, po_number: 1 }, { unique: true });
+PurchaseOrderSchema.index({ tenantId: 1, status: 1 });
