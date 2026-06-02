@@ -18,7 +18,7 @@ export class TaxService {
     private readonly queryBuilder: QueryBuilderService<any>,
   ) {}
 
-  async create(createTaxDto: CreateTaxDto, userId: string) {
+  async create(createTaxDto: CreateTaxDto, userId: string, username?: string) {
     const tenantId = 'pharma_inc'; // TODO: Get tenant from request context
     
     // Validate field configurations
@@ -59,8 +59,8 @@ export class TaxService {
 
     const newTax = new this.taxModel({
       ...createTaxDto,
-      createdBy: userId,
-      updatedBy: userId,
+      createdBy: username || userId,
+      updatedBy: username || userId,
     });
     const savedTax = await newTax.save();
 
@@ -125,7 +125,7 @@ export class TaxService {
     return this.taxModel.find(query).sort({ priority: 1 }).exec();
   }
 
-  async update(id: string, updateTaxDto: UpdateTaxDto, userId: string) {
+  async update(id: string, updateTaxDto: UpdateTaxDto, userId: string, username?: string) {
     const oldTax = await this.taxModel.findById(id).exec();
     
     if (!oldTax) {
@@ -162,7 +162,7 @@ export class TaxService {
     const updatedTax = await this.taxModel
       .findByIdAndUpdate(
         id,
-        { ...updateTaxDto, updatedBy: userId },
+        { ...updateTaxDto, updatedBy: username || userId },
         { new: true },
       )
       .exec();
@@ -199,7 +199,7 @@ export class TaxService {
     return { id };
   }
 
-  async archive(id: string, userId: string) {
+  async archive(id: string, userId: string, username?: string) {
     const tax = await this.taxModel.findById(id).exec();
     
     if (!tax) {
@@ -209,7 +209,7 @@ export class TaxService {
     const archivedTax = await this.taxModel
       .findByIdAndUpdate(
         id,
-        { status: 'archived', updatedBy: userId },
+        { status: 'archived', updatedBy: username || userId },
         { new: true },
       )
       .exec();
@@ -227,7 +227,7 @@ export class TaxService {
     return archivedTax;
   }
 
-  async activate(id: string, userId: string) {
+  async activate(id: string, userId: string, username?: string) {
     const tax = await this.taxModel.findById(id).exec();
     
     if (!tax) {
@@ -237,7 +237,7 @@ export class TaxService {
     const activatedTax = await this.taxModel
       .findByIdAndUpdate(
         id,
-        { status: 'active', updatedBy: userId },
+        { status: 'active', updatedBy: username || userId },
         { new: true },
       )
       .exec();

@@ -1,0 +1,20 @@
+{
+  "fields": [
+    { "field_id": "employee_id", "label": "Employee ID", "type": "string", "required": true },
+    { "field_id": "name", "label": "Full Name", "type": "string", "required": true },
+    { "field_id": "gender", "label": "Gender", "type": "enum", "values": ["Male", "Female", "Other"], "required": true },
+    { "field_id": "dob", "label": "Date of Birth", "type": "date", "required": true },
+    { "field_id": "email", "label": "Email Address", "type": "string", "required": true },
+    { "field_id": "phone", "label": "Phone Number", "type": "string", "required": true },
+    { "field_id": "department", "label": "Department", "type": "enum", "values": ["Cardiology", "Orthopaedics", "Neurology", "General Medicine", "Paediatrics", "Oncology", "Emergency", "Radiology", "Gynaecology", "Psychiatry", "Urology", "Nephrology", "ENT", "Ophthalmology", "Dermatology"], "required": true },
+    { "field_id": "specialisation", "label": "Specialisation", "type": "string", "required": true },
+    { "field_id": "qualification", "label": "Qualifications", "type": "string", "required": false },
+    { "field_id": "experience", "label": "Years of Experience", "type": "string", "required": false },
+    { "field_id": "registration_no", "label": "Registration Number", "type": "string", "required": true },
+    { "field_id": "consultation_fee", "label": "Consultation Fee (₹)", "type": "string", "required": true },
+    { "field_id": "status", "label": "Status", "type": "enum", "values": ["Active", "On Leave", "Inactive"], "required": true },
+    { "field_id": "opd_slots", "label": "OPD Slots per Day", "type": "string", "required": false },
+    { "field_id": "join_date", "label": "Join Date", "type": "date", "required": true },
+    { "field_id": "languages", "label": "Languages Spoken", "type": "string", "required": false }
+  ]
+}

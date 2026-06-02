@@ -24,7 +24,7 @@ export class StockService {
 
   // ─── Stock Transfer Methods ────────────────────────────────────────────────
 
-  async createTransfer(dto: CreateStockTransferDto, userId: string, tenantId: string) {
+  async createTransfer(dto: CreateStockTransferDto, userId: string, tenantId: string, username?: string) {
     const fieldConfigs = await this.tenantsService.getFieldConfiguration(tenantId, 'stock_transfer');
     for (const fieldConfig of fieldConfigs) {
       if (fieldConfig.required && !dto.custom_fields?.[fieldConfig.field_id]) {
@@ -39,8 +39,8 @@ export class StockService {
       transfer_number,
       status: dto.status || 'draft',
       tenantId,
-      createdBy: userId,
-      updatedBy: userId,
+      createdBy: username || userId,
+      updatedBy: username || userId,
     });
     const saved = await newTransfer.save();
 
@@ -69,12 +69,12 @@ export class StockService {
     return transfer;
   }
 
-  async updateTransfer(id: string, dto: UpdateStockTransferDto, userId: string, tenantId: string) {
+  async updateTransfer(id: string, dto: UpdateStockTransferDto, userId: string, tenantId: string, username?: string) {
     await this.findOneTransfer(id, tenantId);
 
     const updated = await this.stockTransferModel.findOneAndUpdate(
       { _id: id, tenantId },
-      { ...dto, updatedBy: userId },
+      { ...dto, updatedBy: username || userId },
       { new: true },
     ).exec();
 
@@ -107,10 +107,10 @@ export class StockService {
     return { id };
   }
 
-  async completeTransfer(id: string, userId: string, tenantId: string) {
+  async completeTransfer(id: string, userId: string, tenantId: string, username?: string) {
     const transfer = await this.stockTransferModel.findOneAndUpdate(
       { _id: id, tenantId },
-      { status: 'completed', updatedBy: userId },
+      { status: 'completed', updatedBy: username || userId },
       { new: true },
     ).exec();
 
@@ -154,7 +154,7 @@ export class StockService {
 
   // ─── Stock Adjustment Methods ──────────────────────────────────────────────
 
-  async createAdjustment(dto: CreateStockAdjustmentDto, userId: string, tenantId: string) {
+  async createAdjustment(dto: CreateStockAdjustmentDto, userId: string, tenantId: string, username?: string) {
     const fieldConfigs = await this.tenantsService.getFieldConfiguration(tenantId, 'stock_adjustment');
     for (const fieldConfig of fieldConfigs) {
       if (fieldConfig.required && !dto.custom_fields?.[fieldConfig.field_id]) {
@@ -169,8 +169,8 @@ export class StockService {
       adjustment_number,
       status: 'draft',
       tenantId,
-      createdBy: userId,
-      updatedBy: userId,
+      createdBy: username || userId,
+      updatedBy: username || userId,
     });
     const saved = await newAdjustment.save();
 
@@ -199,12 +199,12 @@ export class StockService {
     return adjustment;
   }
 
-  async updateAdjustment(id: string, dto: UpdateStockAdjustmentDto, userId: string, tenantId: string) {
+  async updateAdjustment(id: string, dto: UpdateStockAdjustmentDto, userId: string, tenantId: string, username?: string) {
     await this.findOneAdjustment(id, tenantId);
 
     const updated = await this.stockAdjustmentModel.findOneAndUpdate(
       { _id: id, tenantId },
-      { ...dto, updatedBy: userId },
+      { ...dto, updatedBy: username || userId },
       { new: true },
     ).exec();
 
@@ -237,10 +237,10 @@ export class StockService {
     return { id };
   }
 
-  async applyAdjustment(id: string, userId: string, tenantId: string) {
+  async applyAdjustment(id: string, userId: string, tenantId: string, username?: string) {
     const adjustment = await this.stockAdjustmentModel.findOneAndUpdate(
       { _id: id, tenantId },
-      { status: 'applied', updatedBy: userId },
+      { status: 'applied', updatedBy: username || userId },
       { new: true },
     ).exec();
 

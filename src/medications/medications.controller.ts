@@ -40,7 +40,7 @@ export class MedicationsController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.medicationsService.createMedication(dto, req.user.userId, tenantId);
+    return this.medicationsService.createMedication(dto, req.user.userId, tenantId, req.user.username);
   }
 
   @Get('catalog')
@@ -69,7 +69,7 @@ export class MedicationsController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.medicationsService.updateMedication(id, dto, req.user.userId, tenantId);
+    return this.medicationsService.updateMedication(id, dto, req.user.userId, tenantId, req.user.username);
   }
 
   @Delete('catalog/:id')
@@ -95,7 +95,7 @@ export class MedicationsController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.medicationsService.createPrescription(dto, req.user.userId, tenantId);
+    return this.medicationsService.createPrescription(dto, req.user.userId, tenantId, req.user.username);
   }
 
   @Get('prescriptions')
@@ -130,7 +130,7 @@ export class MedicationsController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.medicationsService.updatePrescription(id, dto, req.user.userId, tenantId);
+    return this.medicationsService.updatePrescription(id, dto, req.user.userId, tenantId, req.user.username);
   }
 
   @Delete('prescriptions/:id')

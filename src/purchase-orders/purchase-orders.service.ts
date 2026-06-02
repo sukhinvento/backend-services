@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreatePurchaseOrderDto } from './dto/create-purchase-order.dto';
@@ -11,21 +11,28 @@ import { TenantsService } from '@tenants/tenants.service';
 import { AuditService } from '@audit/audit.service';
 import { QueryDto } from '@common/dto/query.dto';
 import { QueryBuilderService } from '@common/services/query-builder.service';
+import { KafkaService } from '@kafka/kafka.service';
+import { InvoicesService } from '@invoices/invoices.service';
 
 @Injectable()
 export class PurchaseOrdersService {
+  private readonly logger = new Logger(PurchaseOrdersService.name);
+
   constructor(
     @InjectModel(PurchaseOrder.name)
     private purchaseOrderModel: Model<PurchaseOrderDocument>,
     private readonly tenantsService: TenantsService,
     private readonly auditService: AuditService,
     private readonly queryBuilder: QueryBuilderService<PurchaseOrderDocument>,
+    private readonly kafkaService: KafkaService,
+    private readonly invoicesService: InvoicesService,
   ) {}
 
   async create(
     createPurchaseOrderDto: CreatePurchaseOrderDto,
     userId: string,
     tenantId: string,
+    username?: string,
   ) {
     const fieldConfigs = await this.tenantsService.getFieldConfiguration(
       tenantId,
@@ -50,8 +57,8 @@ export class PurchaseOrdersService {
       po_number,
       tenantId,
       status: 'draft',
-      createdBy: userId,
-      updatedBy: userId,
+      createdBy: username || userId,
+      updatedBy: username || userId,
     });
     const savedPurchaseOrder = await newPurchaseOrder.save();
 
@@ -63,6 +70,30 @@ export class PurchaseOrdersService {
       newValue: savedPurchaseOrder.toObject(),
       tenantId,
     });
+
+    // Emit event for automatic invoice creation (include full source details)
+    const poObj = savedPurchaseOrder.toObject() as any;
+    void this.kafkaService.sendEvent('billing-events', `po-${savedPurchaseOrder.id}`, {
+      eventType: 'purchase_order.created',
+      entity_id: savedPurchaseOrder.id as string,
+      entity_type: 'purchase_order',
+      amount: poObj.grand_total || 0,
+      items: poObj.items || [],
+      vendor_id: createPurchaseOrderDto.vendor_id,
+      vendor_name: createPurchaseOrderDto.vendor_name,
+      vendor_phone: createPurchaseOrderDto.vendor_phone,
+      vendor_email: createPurchaseOrderDto.vendor_email,
+      vendor_address: createPurchaseOrderDto.vendor_address,
+      po_number: po_number,
+      order_date: poObj.order_date,
+      delivery_date: poObj.delivery_date,
+      payment_method: poObj.payment_method,
+      shipping_address: poObj.shipping_address,
+      notes: poObj.notes,
+      tenantId,
+      createdBy: userId,
+      timestamp: new Date().toISOString(),
+    }).catch(err => this.logger.error('Failed to emit PO creation event', err));
 
     return savedPurchaseOrder;
   }
@@ -97,6 +128,7 @@ export class PurchaseOrdersService {
     updatePurchaseOrderDto: UpdatePurchaseOrderDto,
     userId: string,
     tenantId: string,
+    username?: string,
   ) {
     const oldPurchaseOrder = await this.purchaseOrderModel
       .findOne({ _id: id, tenantId })
@@ -104,7 +136,7 @@ export class PurchaseOrdersService {
     const updatedPurchaseOrder = await this.purchaseOrderModel
       .findOneAndUpdate(
         { _id: id, tenantId },
-        { ...updatePurchaseOrderDto, updatedBy: userId },
+        { ...updatePurchaseOrderDto, updatedBy: username || userId },
         { new: true },
       )
       .exec();
@@ -118,6 +150,18 @@ export class PurchaseOrdersService {
       newValue: updatedPurchaseOrder?.toObject(),
       tenantId,
     });
+
+    // Sync invoice status when paid_amount changes
+    // IMPORTANT: Use the document's `id` field (BaseSchema), NOT the `_id` URL param,
+    // because the invoice's order_id was set from `savedPurchaseOrder.id` during Kafka creation.
+    if (updatePurchaseOrderDto.paid_amount !== undefined && updatedPurchaseOrder) {
+      const po = updatedPurchaseOrder.toObject() as any;
+      const paidAmount = po.paid_amount || 0;
+      const totalAmount = po.grand_total || po.amount || 0;
+      const orderId = po.id || id;
+      void this.invoicesService.updatePaymentByOrderId(orderId, paidAmount, totalAmount, userId)
+        .catch(err => this.logger.error(`Failed to sync invoice for PO ${orderId}`, err));
+    }
 
     return updatedPurchaseOrder;
   }
@@ -156,14 +200,14 @@ export class PurchaseOrdersService {
     return result.map((r: any) => ({ month: r._id, total: r.total, count: r.count }));
   }
 
-  async approve(id: string, userId: string, tenantId: string) {
+  async approve(id: string, userId: string, tenantId: string, username?: string) {
     const oldPurchaseOrder = await this.purchaseOrderModel
       .findOne({ _id: id, tenantId })
       .exec();
     const updatedPurchaseOrder = await this.purchaseOrderModel
       .findOneAndUpdate(
         { _id: id, tenantId },
-        { status: 'approved', updatedBy: userId },
+        { status: 'approved', updatedBy: username || userId },
         { new: true },
       )
       .exec();

@@ -17,11 +17,11 @@ export class TenantsService {
     private readonly queryBuilder: QueryBuilderService<TenantDocument>,
   ) {}
 
-  async create(createTenantDto: CreateTenantDto, userId: string) {
+  async create(createTenantDto: CreateTenantDto, userId: string, username?: string) {
     const newTenant = new this.tenantModel({
       ...createTenantDto,
-      createdBy: userId,
-      updatedBy: userId,
+      createdBy: username || userId,
+      updatedBy: username || userId,
     });
     const savedTenant = await newTenant.save();
 
@@ -46,12 +46,12 @@ export class TenantsService {
     return this.tenantModel.findById(id).exec();
   }
 
-  async update(id: string, updateTenantDto: UpdateTenantDto, userId: string) {
+  async update(id: string, updateTenantDto: UpdateTenantDto, userId: string, username?: string) {
     const oldTenant = await this.tenantModel.findById(id).exec();
     const updatedTenant = await this.tenantModel
       .findByIdAndUpdate(
         id,
-        { ...updateTenantDto, updatedBy: userId },
+        { ...updateTenantDto, updatedBy: username || userId },
         { new: true },
       )
       .exec();
@@ -92,6 +92,7 @@ export class TenantsService {
     module: string,
     createFieldConfigurationDto: CreateFieldConfigurationDto,
     userId: string,
+    username?: string,
   ) {
     const tenant = await this.findTenantByIdOrSlug(tenantId);
     if (!tenant) {
@@ -101,7 +102,7 @@ export class TenantsService {
     const oldConfig = tenant.fieldConfigurations.get(module);
 
     tenant.fieldConfigurations.set(module, createFieldConfigurationDto.fields);
-    tenant.updatedBy = userId;
+    tenant.updatedBy = username || userId;
     const savedTenant = await tenant.save();
 
     void this.auditService.log({

@@ -8,6 +8,7 @@ import { Patient, PatientSchema } from '../patients/schemas/patient.schema';
 import { AuthModule } from '@auth/auth.module';
 import { CommonModule } from '@common/common.module';
 import { AuditModule } from '@audit/audit.module';
+import { KafkaModule } from '@kafka/kafka.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { AuditModule } from '@audit/audit.module';
     AuthModule,
     CommonModule,
     AuditModule,
+    KafkaModule,
   ],
   controllers: [AdmissionsController],
   providers: [AdmissionsService],

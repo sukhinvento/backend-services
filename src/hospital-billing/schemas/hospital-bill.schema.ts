@@ -33,6 +33,11 @@ export class HospitalBill extends BaseSchema {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Admission' })
   admission_id: MongooseSchema.Types.ObjectId;
 
+  /** Generic link back to the source entity (diagnostic booking id, admission id, etc.)
+   *  Used to sync payment status to the corresponding invoice. */
+  @Prop()
+  source_entity_id: string;
+
   @Prop({ type: [LineItemSchema], default: [] })
   line_items: {
     description: string;

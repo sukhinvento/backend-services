@@ -37,7 +37,7 @@ export class InventoryController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.inventoryService.create(dto, req.user.userId, tenantId);
+    return this.inventoryService.create(dto, req.user.userId, tenantId, req.user.username);
   }
 
   @Get()
@@ -90,7 +90,7 @@ export class InventoryController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.inventoryService.update(id, dto, req.user.userId, tenantId);
+    return this.inventoryService.update(id, dto, req.user.userId, tenantId, req.user.username);
   }
 
   @Delete(':id')
@@ -111,6 +111,6 @@ export class InventoryController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.inventoryService.adjustStock(id, dto, req.user.userId, tenantId);
+    return this.inventoryService.adjustStock(id, dto, req.user.userId, tenantId, req.user.username);
   }
 }

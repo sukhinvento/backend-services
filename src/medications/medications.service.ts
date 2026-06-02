@@ -22,8 +22,8 @@ export class MedicationsService {
   }
 
   // --- Catalog ---
-  async createMedication(dto: CreateMedicationDto, userId: string, tenantId: string) {
-    const saved = await new this.medicationModel({ ...dto, tenantId, createdBy: userId, updatedBy: userId }).save();
+  async createMedication(dto: CreateMedicationDto, userId: string, tenantId: string, username?: string) {
+    const saved = await new this.medicationModel({ ...dto, tenantId, createdBy: username || userId, updatedBy: username || userId }).save();
     void this.auditService.log({ userId, action: 'create', entity: 'medication', entityId: saved.id as string, newValue: saved.toObject(), tenantId });
     return saved;
   }
@@ -38,10 +38,10 @@ export class MedicationsService {
     return m;
   }
 
-  async updateMedication(id: string, dto: UpdateMedicationDto, userId: string, tenantId: string) {
+  async updateMedication(id: string, dto: UpdateMedicationDto, userId: string, tenantId: string, username?: string) {
     const old = await this.medicationModel.findOne({ _id: id, tenantId }).exec();
     if (!old) throw new NotFoundException('Medication not found');
-    const updated = await this.medicationModel.findByIdAndUpdate(id, { ...dto, updatedBy: userId }, { new: true }).exec();
+    const updated = await this.medicationModel.findByIdAndUpdate(id, { ...dto, updatedBy: username || userId }, { new: true }).exec();
     void this.auditService.log({ userId, action: 'update', entity: 'medication', entityId: id, oldValue: old.toObject(), newValue: updated?.toObject(), tenantId });
     return updated;
   }
@@ -54,9 +54,9 @@ export class MedicationsService {
   }
 
   // --- Prescriptions ---
-  async createPrescription(dto: CreatePatientMedicationDto, userId: string, tenantId: string) {
+  async createPrescription(dto: CreatePatientMedicationDto, userId: string, tenantId: string, username?: string) {
     const prescription_number = this.generatePrescriptionNumber();
-    const saved = await new this.prescriptionModel({ ...dto, prescription_number, tenantId, createdBy: userId, updatedBy: userId }).save();
+    const saved = await new this.prescriptionModel({ ...dto, prescription_number, tenantId, createdBy: username || userId, updatedBy: username || userId }).save();
     void this.auditService.log({ userId, action: 'create', entity: 'patient_medication', entityId: saved.id as string, newValue: saved.toObject(), tenantId });
     return saved;
   }
@@ -74,10 +74,10 @@ export class MedicationsService {
     return p;
   }
 
-  async updatePrescription(id: string, dto: UpdatePatientMedicationDto, userId: string, tenantId: string) {
+  async updatePrescription(id: string, dto: UpdatePatientMedicationDto, userId: string, tenantId: string, username?: string) {
     const old = await this.prescriptionModel.findOne({ _id: id, tenantId }).exec();
     if (!old) throw new NotFoundException('Prescription not found');
-    const updated = await this.prescriptionModel.findByIdAndUpdate(id, { ...dto, updatedBy: userId }, { new: true }).exec();
+    const updated = await this.prescriptionModel.findByIdAndUpdate(id, { ...dto, updatedBy: username || userId }, { new: true }).exec();
     void this.auditService.log({ userId, action: 'update', entity: 'patient_medication', entityId: id, oldValue: old.toObject(), newValue: updated?.toObject(), tenantId });
     return updated;
   }

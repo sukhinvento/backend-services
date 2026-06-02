@@ -24,12 +24,15 @@ import { DiagnosticsModule } from './diagnostics/diagnostics.module';
 import { MedicationsModule } from './medications/medications.module';
 import { HospitalBillingModule } from './hospital-billing/hospital-billing.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { KafkaModule } from './kafka/kafka.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
     ConfigModule,
     LoggerModule,
     DatabaseModule,
+    KafkaModule,
     TenantsModule,
     VendorsModule,
     PurchaseOrdersModule,
@@ -50,6 +53,7 @@ import { InventoryModule } from './inventory/inventory.module';
     MedicationsModule,
     HospitalBillingModule,
     InventoryModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -40,6 +40,7 @@ export class PurchaseOrdersController {
       createPurchaseOrderDto,
       req.user.userId,
       tenantId,
+      req.user.username,
     );
   }
 
@@ -92,6 +93,7 @@ export class PurchaseOrdersController {
       updatePurchaseOrderDto,
       req.user.userId,
       tenantId,
+      req.user.username,
     );
   }
 
@@ -114,6 +116,6 @@ export class PurchaseOrdersController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.purchaseOrdersService.approve(id, req.user.userId, tenantId);
+    return this.purchaseOrdersService.approve(id, req.user.userId, tenantId, req.user.username);
   }
 }

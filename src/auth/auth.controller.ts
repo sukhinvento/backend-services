@@ -79,6 +79,52 @@ export class AuthController {
     return this.authService.logout();
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get current user profile',
+    description: 'Returns the profile of the currently authenticated user',
+  })
+  @ApiResponse({ status: 200, description: 'Profile retrieved successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @Get('profile')
+  getProfile(@Req() req: RequestWithUser) {
+    return this.authService.getProfile(req.user.userId, req.user.username, req.user.tenantId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Update current user profile',
+    description: 'Updates the profile of the currently authenticated user (name, email, phone, department, designation)',
+  })
+  @ApiResponse({ status: 200, description: 'Profile updated successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @Patch('profile')
+  updateProfile(
+    @Body() updateDto: UpdateUserDto,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.authService.updateProfile(req.user.userId, req.user.username, updateDto, req.user.tenantId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Change own password',
+    description: 'Allows the authenticated user to change their password',
+  })
+  @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid current password' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @Post('profile/change-password')
+  changePassword(
+    @Body() body: { currentPassword: string; newPassword: string },
+    @Req() req: RequestWithUser,
+  ) {
+    return this.authService.changePassword(req.user.userId, req.user.username, body.currentPassword, body.newPassword, req.user.tenantId);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard, ScopesGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({

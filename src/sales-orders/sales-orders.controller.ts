@@ -36,7 +36,7 @@ export class SalesOrdersController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.salesOrdersService.create(createSalesOrderDto, req.user.userId, tenantId);
+    return this.salesOrdersService.create(createSalesOrderDto, req.user.userId, tenantId, req.user.username);
   }
 
   @Get('stats')
@@ -80,7 +80,7 @@ export class SalesOrdersController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.salesOrdersService.update(id, updateSalesOrderDto, req.user.userId, tenantId);
+    return this.salesOrdersService.update(id, updateSalesOrderDto, req.user.userId, tenantId, req.user.username);
   }
 
   @Delete(':id')
@@ -94,13 +94,13 @@ export class SalesOrdersController {
   @Scopes(Scope.SALES_ORDERS)
   @Roles(Role.ADMIN, Role.MANAGER, Role.USER)
   ship(@Param('id') id: string, @Req() req: RequestWithUser) {
-    return this.salesOrdersService.ship(id, req.user.userId);
+    return this.salesOrdersService.ship(id, req.user.userId, req.user.username);
   }
 
   @Post(':id/invoice')
   @Scopes(Scope.SALES_ORDERS)
   @Roles(Role.ADMIN, Role.MANAGER, Role.USER)
   invoice(@Param('id') id: string, @Req() req: RequestWithUser) {
-    return this.salesOrdersService.invoice(id, req.user.userId);
+    return this.salesOrdersService.invoice(id, req.user.userId, req.user.username);
   }
 }

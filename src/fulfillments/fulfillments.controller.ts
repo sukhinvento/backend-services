@@ -61,7 +61,8 @@ export class FulfillmentsController {
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user.userId;
-    return this.fulfillmentsService.create(createFulfillmentDto, userId);
+    const username = req.user.username;
+    return this.fulfillmentsService.create(createFulfillmentDto, userId, username);
   }
 
   @ApiOperation({
@@ -134,7 +135,8 @@ export class FulfillmentsController {
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user.userId;
-    return this.fulfillmentsService.update(id, updateFulfillmentDto, userId);
+    const username = req.user.username;
+    return this.fulfillmentsService.update(id, updateFulfillmentDto, userId, username);
   }
 
   @ApiOperation({

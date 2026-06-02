@@ -36,7 +36,7 @@ export class DoctorsController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.doctorsService.create(createDoctorDto, req.user.userId, tenantId);
+    return this.doctorsService.create(createDoctorDto, req.user.userId, tenantId, req.user.username);
   }
 
   @Get()
@@ -85,7 +85,7 @@ export class DoctorsController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.doctorsService.update(id, updateDoctorDto, req.user.userId, tenantId);
+    return this.doctorsService.update(id, updateDoctorDto, req.user.userId, tenantId, req.user.username);
   }
 
   @Delete(':id')

@@ -18,28 +18,34 @@ export class InvoicesService {
     private readonly queryBuilder: QueryBuilderService<InvoiceDocument>,
   ) {}
 
-  async create(createInvoiceDto: CreateInvoiceDto, userId: string) {
-    // TODO: Get tenant from request context
-    const tenantId = 'pharma_inc';
+  async create(createInvoiceDto: CreateInvoiceDto, userId: string, tenantId: string, username?: string) {
     const fieldConfigs = await this.tenantsService.getFieldConfiguration(
       tenantId,
       'invoice',
     );
 
-    for (const fieldConfig of fieldConfigs) {
-      if (
-        fieldConfig.required &&
-        !createInvoiceDto.custom_fields[fieldConfig.field_id]
-      ) {
-        throw new BadRequestException(`${fieldConfig.label} is required.`);
+    // Custom fields validation (skip if not present)
+    if (createInvoiceDto.custom_fields) {
+      for (const fieldConfig of fieldConfigs) {
+        if (
+          fieldConfig.required &&
+          !createInvoiceDto.custom_fields[fieldConfig.field_id]
+        ) {
+          throw new BadRequestException(`${fieldConfig.label} is required.`);
+        }
       }
     }
 
+    // Auto-generate invoice_number if not provided
+    const invoice_number = createInvoiceDto.invoice_number || `INV-${Date.now().toString(36).toUpperCase()}`;
+
     const newInvoice = new this.invoiceModel({
       ...createInvoiceDto,
-      status: 'draft',
-      createdBy: userId,
-      updatedBy: userId,
+      invoice_number,
+      status: createInvoiceDto.status || 'draft',
+      tenantId,
+      createdBy: username || userId,
+      updatedBy: username || userId,
     });
     const savedInvoice = await newInvoice.save();
 
@@ -64,12 +70,12 @@ export class InvoicesService {
     return this.invoiceModel.findById(id).exec();
   }
 
-  async update(id: string, updateInvoiceDto: UpdateInvoiceDto, userId: string) {
+  async update(id: string, updateInvoiceDto: UpdateInvoiceDto, userId: string, username?: string) {
     const oldInvoice = await this.invoiceModel.findById(id).exec();
     const updatedInvoice = await this.invoiceModel
       .findByIdAndUpdate(
         id,
-        { ...updateInvoiceDto, updatedBy: userId },
+        { ...updateInvoiceDto, updatedBy: username || userId },
         { new: true },
       )
       .exec();
@@ -105,12 +111,12 @@ export class InvoicesService {
     return { id };
   }
 
-  async pay(id: string, userId: string) {
+  async pay(id: string, userId: string, username?: string) {
     const oldInvoice = await this.invoiceModel.findById(id).exec();
     const updatedInvoice = await this.invoiceModel
       .findByIdAndUpdate(
         id,
-        { status: 'paid', updatedBy: userId },
+        { status: 'paid', paid_amount: oldInvoice?.amount || 0, updatedBy: username || userId },
         { new: true },
       )
       .exec();
@@ -120,11 +126,56 @@ export class InvoicesService {
       action: 'pay',
       entity: 'invoice',
       entityId: id,
-
       oldValue: oldInvoice?.toObject(),
-
       newValue: updatedInvoice?.toObject(),
-      tenantId: 'pharma_inc', // TODO: Get from context
+      tenantId: oldInvoice?.tenantId || 'pharma_inc',
+    });
+
+    return updatedInvoice;
+  }
+
+  /**
+   * Update the linked invoice when a PO/SO payment is recorded.
+   * Finds invoice by order_id and updates paid_amount + status.
+   */
+  async updatePaymentByOrderId(
+    orderId: string,
+    paidAmount: number,
+    totalAmount: number,
+    userId: string,
+  ) {
+    const invoice = await this.invoiceModel.findOne({ order_id: orderId }).exec();
+    if (!invoice) return null;
+
+    let status = 'draft';
+    if (paidAmount >= totalAmount && totalAmount > 0) {
+      status = 'paid';
+    } else if (paidAmount > 0) {
+      status = 'partially_paid';
+    }
+
+    const oldInvoice = invoice.toObject();
+    const updatedInvoice = await this.invoiceModel
+      .findByIdAndUpdate(
+        invoice._id,
+        {
+          paid_amount: paidAmount,
+          amount: totalAmount,
+          status,
+          updatedBy: userId,
+        },
+        { new: true },
+      )
+      .exec();
+
+    void this.auditService.log({
+      userId,
+      action: 'payment_update',
+      entity: 'invoice',
+      entityId: invoice._id as string,
+      oldValue: oldInvoice,
+      newValue: updatedInvoice?.toObject(),
+      tenantId: invoice.tenantId,
     });
 
     return updatedInvoice;

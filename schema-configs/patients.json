@@ -1,0 +1,23 @@
+{
+  "fields": [
+    { "field_id": "patient_id", "label": "Patient ID", "type": "string", "required": true },
+    { "field_id": "first_name", "label": "First Name", "type": "string", "required": true },
+    { "field_id": "last_name", "label": "Last Name", "type": "string", "required": true },
+    { "field_id": "dob", "label": "Date of Birth", "type": "date", "required": true },
+    { "field_id": "gender", "label": "Gender", "type": "enum", "values": ["Male", "Female", "Other"], "required": true },
+    { "field_id": "phone", "label": "Phone Number", "type": "string", "required": true },
+    { "field_id": "email", "label": "Email Address", "type": "string", "required": true },
+    { "field_id": "blood_group", "label": "Blood Group", "type": "enum", "values": ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"], "required": true },
+    { "field_id": "allergies", "label": "Allergies", "type": "string", "required": false },
+    { "field_id": "medical_history", "label": "Medical History", "type": "string", "required": false },
+    { "field_id": "address", "label": "Address", "type": "string", "required": true },
+    { "field_id": "city", "label": "City", "type": "string", "required": true },
+    { "field_id": "state", "label": "State", "type": "string", "required": true },
+    { "field_id": "pin_code", "label": "PIN Code", "type": "string", "required": true },
+    { "field_id": "emergency_contact_name", "label": "Emergency Contact Name", "type": "string", "required": true },
+    { "field_id": "emergency_contact_phone", "label": "Emergency Contact Phone", "type": "string", "required": true },
+    { "field_id": "insurance_provider", "label": "Insurance Provider", "type": "string", "required": false },
+    { "field_id": "insurance_policy_no", "label": "Insurance Policy Number", "type": "string", "required": false },
+    { "field_id": "status", "label": "Patient Status", "type": "enum", "values": ["Active", "Inactive", "Discharged"], "required": true }
+  ]
+}

@@ -12,8 +12,32 @@ export class User extends BaseSchema {
   @Prop({ required: true })
   password_hash: string;
 
+  @Prop()
+  name: string;
+
+  @Prop()
+  email: string;
+
+  @Prop()
+  phone: string;
+
+  @Prop()
+  department: string;
+
+  @Prop()
+  designation: string;
+
+  @Prop()
+  avatar_url: string;
+
   @Prop([String])
   roles: string[];
+
+  @Prop([String])
+  scopes: string[];
+
+  @Prop({ type: String, enum: ['active', 'inactive', 'suspended'], default: 'active' })
+  status: string;
 
   @Prop({ required: true })
   tenantId: string;

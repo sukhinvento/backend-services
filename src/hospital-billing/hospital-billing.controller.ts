@@ -37,7 +37,7 @@ export class HospitalBillingController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.hospitalBillingService.create(dto, req.user.userId, tenantId);
+    return this.hospitalBillingService.create(dto, req.user.userId, tenantId, req.user.username);
   }
 
   @Get()
@@ -98,7 +98,7 @@ export class HospitalBillingController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.hospitalBillingService.update(id, dto, req.user.userId, tenantId);
+    return this.hospitalBillingService.update(id, dto, req.user.userId, tenantId, req.user.username);
   }
 
   @Post(':id/issue')
@@ -106,7 +106,7 @@ export class HospitalBillingController {
   @Roles(Role.ADMIN, Role.MANAGER, Role.BILLING_STAFF)
   @ApiOperation({ summary: 'Issue a hospital bill' })
   issue(@Param('id') id: string, @Req() req: RequestWithUser, @TenantId() tenantId: string) {
-    return this.hospitalBillingService.issue(id, req.user.userId, tenantId);
+    return this.hospitalBillingService.issue(id, req.user.userId, tenantId, req.user.username);
   }
 
   @Post(':id/pay')
@@ -119,7 +119,7 @@ export class HospitalBillingController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.hospitalBillingService.recordPayment(id, dto, req.user.userId, tenantId);
+    return this.hospitalBillingService.recordPayment(id, dto, req.user.userId, tenantId, req.user.username);
   }
 
   @Delete(':id')

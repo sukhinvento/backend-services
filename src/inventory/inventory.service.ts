@@ -14,8 +14,8 @@ export class InventoryService {
     private readonly auditService: AuditService,
   ) {}
 
-  async create(dto: CreateInventoryItemDto, userId: string, tenantId: string) {
-    const saved = await new this.itemModel({ ...dto, tenantId, createdBy: userId, updatedBy: userId }).save();
+  async create(dto: CreateInventoryItemDto, userId: string, tenantId: string, username?: string) {
+    const saved = await new this.itemModel({ ...dto, tenantId, createdBy: username || userId, updatedBy: username || userId }).save();
     void this.auditService.log({ userId, action: 'create', entity: 'inventory_item', entityId: saved.id as string, newValue: saved.toObject(), tenantId });
     return saved;
   }
@@ -64,10 +64,10 @@ export class InventoryService {
     return item;
   }
 
-  async update(id: string, dto: UpdateInventoryItemDto, userId: string, tenantId: string) {
+  async update(id: string, dto: UpdateInventoryItemDto, userId: string, tenantId: string, username?: string) {
     const old = await this.itemModel.findOne({ _id: id, tenantId }).exec();
     if (!old) throw new NotFoundException('Inventory item not found');
-    const updated = await this.itemModel.findByIdAndUpdate(id, { ...dto, updatedBy: userId }, { new: true }).exec();
+    const updated = await this.itemModel.findByIdAndUpdate(id, { ...dto, updatedBy: username || userId }, { new: true }).exec();
     void this.auditService.log({ userId, action: 'update', entity: 'inventory_item', entityId: id, oldValue: old.toObject(), newValue: updated?.toObject(), tenantId });
     return updated;
   }
@@ -174,7 +174,7 @@ export class InventoryService {
     };
   }
 
-  async adjustStock(id: string, dto: AdjustStockDto, userId: string, tenantId: string) {
+  async adjustStock(id: string, dto: AdjustStockDto, userId: string, tenantId: string, username?: string) {
     const item = await this.itemModel.findOne({ _id: id, tenantId }).exec();
     if (!item) throw new NotFoundException('Inventory item not found');
 
@@ -185,7 +185,7 @@ export class InventoryService {
     }
 
     const updated = await this.itemModel
-      .findByIdAndUpdate(id, { current_stock: newStock, updatedBy: userId }, { new: true })
+      .findByIdAndUpdate(id, { current_stock: newStock, updatedBy: username || userId }, { new: true })
       .exec();
 
     void this.auditService.log({

@@ -1,0 +1,21 @@
+{
+  "fields": [
+    { "field_id": "sku", "label": "SKU", "type": "string", "required": true },
+    { "field_id": "name", "label": "Item Name", "type": "string", "required": true },
+    { "field_id": "category", "label": "Category", "type": "enum", "values": ["Pharmaceuticals", "Medical Devices", "Consumables", "Instruments", "Diagnostic Kits", "Vaccines"], "required": true },
+    { "field_id": "description", "label": "Description", "type": "string", "required": false },
+    { "field_id": "manufacturer", "label": "Manufacturer", "type": "string", "required": false },
+    { "field_id": "supplier", "label": "Supplier/Vendor", "type": "string", "required": true },
+    { "field_id": "unit_price", "label": "Unit Price (₹)", "type": "string", "required": true },
+    { "field_id": "sale_unit", "label": "Sale Unit", "type": "enum", "values": ["Single Unit", "Strip", "Box", "Bottle", "Vial", "Pack", "Sachet"], "required": true },
+    { "field_id": "current_stock", "label": "Current Stock", "type": "string", "required": true },
+    { "field_id": "min_stock", "label": "Minimum Stock Level", "type": "string", "required": true },
+    { "field_id": "max_stock", "label": "Maximum Stock Level", "type": "string", "required": true },
+    { "field_id": "batch_number", "label": "Batch Number", "type": "string", "required": true },
+    { "field_id": "expiry_date", "label": "Expiry Date", "type": "date", "required": false },
+    { "field_id": "location", "label": "Storage Location", "type": "string", "required": false },
+    { "field_id": "barcode", "label": "Barcode", "type": "string", "required": false },
+    { "field_id": "barcode_type", "label": "Barcode Type", "type": "enum", "values": ["EAN-13", "UPC-A", "CODE-128", "CODE-39", "QR"], "required": false },
+    { "field_id": "rfid_tag", "label": "RFID Tag", "type": "string", "required": false }
+  ]
+}

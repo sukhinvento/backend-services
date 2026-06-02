@@ -18,7 +18,7 @@ export class FulfillmentsService {
     private readonly queryBuilder: QueryBuilderService<FulfillmentDocument>,
   ) {}
 
-  async create(createFulfillmentDto: CreateFulfillmentDto, userId: string) {
+  async create(createFulfillmentDto: CreateFulfillmentDto, userId: string, username?: string) {
     // TODO: Get tenant from request context
     const tenantId = 'pharma_inc';
     const fieldConfigs = await this.tenantsService.getFieldConfiguration(
@@ -37,8 +37,8 @@ export class FulfillmentsService {
 
     const newFulfillment = new this.fulfillmentModel({
       ...createFulfillmentDto,
-      createdBy: userId,
-      updatedBy: userId,
+      createdBy: username || userId,
+      updatedBy: username || userId,
     });
     const savedFulfillment = await newFulfillment.save();
 
@@ -62,12 +62,12 @@ export class FulfillmentsService {
     return this.fulfillmentModel.findById(id).exec();
   }
 
-  async update(id: string, updateFulfillmentDto: UpdateFulfillmentDto, userId: string) {
+  async update(id: string, updateFulfillmentDto: UpdateFulfillmentDto, userId: string, username?: string) {
     const oldFulfillment = await this.fulfillmentModel.findById(id).exec();
     const updatedFulfillment = await this.fulfillmentModel
       .findByIdAndUpdate(
         id,
-        { ...updateFulfillmentDto, updatedBy: userId },
+        { ...updateFulfillmentDto, updatedBy: username || userId },
         { new: true },
       )
       .exec();

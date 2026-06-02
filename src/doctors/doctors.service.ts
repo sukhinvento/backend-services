@@ -13,12 +13,12 @@ export class DoctorsService {
     private readonly auditService: AuditService,
   ) {}
 
-  async create(createDoctorDto: CreateDoctorDto, userId: string, tenantId: string) {
+  async create(createDoctorDto: CreateDoctorDto, userId: string, tenantId: string, username?: string) {
     const newDoctor = new this.doctorModel({
       ...createDoctorDto,
       tenantId,
-      createdBy: userId,
-      updatedBy: userId,
+      createdBy: username || userId,
+      updatedBy: username || userId,
     });
     const saved = await newDoctor.save();
 
@@ -97,12 +97,12 @@ export class DoctorsService {
     return doctor;
   }
 
-  async update(id: string, updateDoctorDto: UpdateDoctorDto, userId: string, tenantId: string) {
+  async update(id: string, updateDoctorDto: UpdateDoctorDto, userId: string, tenantId: string, username?: string) {
     const old = await this.doctorModel.findOne({ _id: id, tenantId }).exec();
     if (!old) throw new NotFoundException('Doctor not found');
 
     const updated = await this.doctorModel
-      .findByIdAndUpdate(id, { ...updateDoctorDto, updatedBy: userId }, { new: true })
+      .findByIdAndUpdate(id, { ...updateDoctorDto, updatedBy: username || userId }, { new: true })
       .exec();
 
     void this.auditService.log({

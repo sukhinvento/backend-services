@@ -61,7 +61,8 @@ export class TaxController {
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user.userId;
-    return this.taxService.create(createTaxDto, userId);
+    const username = req.user.username;
+    return this.taxService.create(createTaxDto, userId, username);
   }
 
   @ApiOperation({
@@ -232,7 +233,8 @@ export class TaxController {
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user.userId;
-    return this.taxService.update(id, updateTaxDto, userId);
+    const username = req.user.username;
+    return this.taxService.update(id, updateTaxDto, userId, username);
   }
 
   @ApiOperation({
@@ -256,7 +258,8 @@ export class TaxController {
   @Roles(Role.ADMIN, Role.MANAGER)
   archive(@Param('id') id: string, @Req() req: RequestWithUser) {
     const userId = req.user.userId;
-    return this.taxService.archive(id, userId);
+    const username = req.user.username;
+    return this.taxService.archive(id, userId, username);
   }
 
   @ApiOperation({
@@ -280,7 +283,8 @@ export class TaxController {
   @Roles(Role.ADMIN, Role.MANAGER)
   activate(@Param('id') id: string, @Req() req: RequestWithUser) {
     const userId = req.user.userId;
-    return this.taxService.activate(id, userId);
+    const username = req.user.username;
+    return this.taxService.activate(id, userId, username);
   }
 
   @ApiOperation({

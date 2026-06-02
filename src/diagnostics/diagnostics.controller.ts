@@ -40,7 +40,7 @@ export class DiagnosticsController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.diagnosticsService.createTest(dto, req.user.userId, tenantId);
+    return this.diagnosticsService.createTest(dto, req.user.userId, tenantId, req.user.username);
   }
 
   @Get('tests')
@@ -61,7 +61,7 @@ export class DiagnosticsController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.diagnosticsService.updateTest(id, dto, req.user.userId, tenantId);
+    return this.diagnosticsService.updateTest(id, dto, req.user.userId, tenantId, req.user.username);
   }
 
   @Delete('tests/:id')
@@ -87,7 +87,7 @@ export class DiagnosticsController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.diagnosticsService.createBooking(dto, req.user.userId, tenantId);
+    return this.diagnosticsService.createBooking(dto, req.user.userId, tenantId, req.user.username);
   }
 
   @Get('bookings')
@@ -141,7 +141,7 @@ export class DiagnosticsController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.diagnosticsService.updateBooking(id, dto, req.user.userId, tenantId);
+    return this.diagnosticsService.updateBooking(id, dto, req.user.userId, tenantId, req.user.username);
   }
 
   @Delete('bookings/:id')

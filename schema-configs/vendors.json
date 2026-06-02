@@ -1,0 +1,26 @@
+{
+  "fields": [
+    { "field_id": "vendor_id", "label": "Vendor ID", "type": "string", "required": true },
+    { "field_id": "name", "label": "Vendor Name", "type": "string", "required": true },
+    { "field_id": "contact_person", "label": "Contact Person", "type": "string", "required": true },
+    { "field_id": "phone", "label": "Phone Number", "type": "string", "required": true },
+    { "field_id": "email", "label": "Email Address", "type": "string", "required": true },
+    { "field_id": "address", "label": "Address", "type": "string", "required": true },
+    { "field_id": "city", "label": "City", "type": "string", "required": false },
+    { "field_id": "state", "label": "State", "type": "string", "required": false },
+    { "field_id": "zip_code", "label": "ZIP Code", "type": "string", "required": false },
+    { "field_id": "country", "label": "Country", "type": "string", "required": false },
+    { "field_id": "category", "label": "Vendor Category", "type": "enum", "values": ["Pharmaceutical", "Medical Devices", "Laboratory", "Distributor", "Wholesaler", "Retailer"], "required": true },
+    { "field_id": "status", "label": "Status", "type": "enum", "values": ["Active", "Inactive", "Pending"], "required": true },
+    { "field_id": "payment_terms", "label": "Payment Terms", "type": "string", "required": true },
+    { "field_id": "tax_id", "label": "Tax ID", "type": "string", "required": false },
+    { "field_id": "gst_number", "label": "GST Number", "type": "string", "required": false },
+    { "field_id": "website", "label": "Website", "type": "string", "required": false },
+    { "field_id": "bank_name", "label": "Bank Name", "type": "string", "required": false },
+    { "field_id": "account_number", "label": "Account Number", "type": "string", "required": false },
+    { "field_id": "ifsc_code", "label": "IFSC Code", "type": "string", "required": false },
+    { "field_id": "credit_limit", "label": "Credit Limit", "type": "string", "required": false },
+    { "field_id": "registration_date", "label": "Registration Date", "type": "date", "required": true },
+    { "field_id": "notes", "label": "Notes", "type": "string", "required": false }
+  ]
+}

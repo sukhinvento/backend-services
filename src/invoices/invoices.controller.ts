@@ -36,7 +36,9 @@ export class InvoicesController {
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user.userId;
-    return this.invoicesService.create(createInvoiceDto, userId);
+    const username = req.user.username;
+    const tenantId = req.user.tenantId;
+    return this.invoicesService.create(createInvoiceDto, userId, tenantId, username);
   }
 
   @Get()
@@ -64,7 +66,8 @@ export class InvoicesController {
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user.userId;
-    return this.invoicesService.update(id, updateInvoiceDto, userId);
+    const username = req.user.username;
+    return this.invoicesService.update(id, updateInvoiceDto, userId, username);
   }
 
   @Delete(':id')
@@ -80,6 +83,7 @@ export class InvoicesController {
   @Roles(Role.ADMIN, Role.USER)
   pay(@Param('id') id: string, @Req() req: RequestWithUser) {
     const userId = req.user.userId;
-    return this.invoicesService.pay(id, userId);
+    const username = req.user.username;
+    return this.invoicesService.pay(id, userId, username);
   }
 }

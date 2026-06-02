@@ -48,7 +48,7 @@ export class StockController {
   @Scopes(Scope.PURCHASE_ORDERS)
   @Roles(Role.ADMIN, Role.MANAGER)
   createTransfer(@Body() dto: CreateStockTransferDto, @Req() req: RequestWithUser) {
-    return this.stockService.createTransfer(dto, req.user.userId, req.user.tenantId);
+    return this.stockService.createTransfer(dto, req.user.userId, req.user.tenantId, req.user.username);
   }
 
   @ApiOperation({ summary: 'List stock transfers' })
@@ -88,7 +88,7 @@ export class StockController {
     @Body() dto: UpdateStockTransferDto,
     @Req() req: RequestWithUser,
   ) {
-    return this.stockService.updateTransfer(id, dto, req.user.userId, req.user.tenantId);
+    return this.stockService.updateTransfer(id, dto, req.user.userId, req.user.tenantId, req.user.username);
   }
 
   @ApiOperation({ summary: 'Delete a stock transfer' })
@@ -106,7 +106,7 @@ export class StockController {
   @Scopes(Scope.PURCHASE_ORDERS)
   @Roles(Role.ADMIN, Role.MANAGER)
   completeTransfer(@Param('id') id: string, @Req() req: RequestWithUser) {
-    return this.stockService.completeTransfer(id, req.user.userId, req.user.tenantId);
+    return this.stockService.completeTransfer(id, req.user.userId, req.user.tenantId, req.user.username);
   }
 
   // ─── Stock Adjustment Endpoints ───────────────────────────────────────────
@@ -118,7 +118,7 @@ export class StockController {
   @Scopes(Scope.PURCHASE_ORDERS)
   @Roles(Role.ADMIN, Role.MANAGER)
   createAdjustment(@Body() dto: CreateStockAdjustmentDto, @Req() req: RequestWithUser) {
-    return this.stockService.createAdjustment(dto, req.user.userId, req.user.tenantId);
+    return this.stockService.createAdjustment(dto, req.user.userId, req.user.tenantId, req.user.username);
   }
 
   @ApiOperation({ summary: 'List stock adjustments' })
@@ -150,7 +150,7 @@ export class StockController {
     @Body() dto: UpdateStockAdjustmentDto,
     @Req() req: RequestWithUser,
   ) {
-    return this.stockService.updateAdjustment(id, dto, req.user.userId, req.user.tenantId);
+    return this.stockService.updateAdjustment(id, dto, req.user.userId, req.user.tenantId, req.user.username);
   }
 
   @ApiOperation({ summary: 'Delete a stock adjustment' })
@@ -168,6 +168,6 @@ export class StockController {
   @Scopes(Scope.PURCHASE_ORDERS)
   @Roles(Role.ADMIN, Role.MANAGER)
   applyAdjustment(@Param('id') id: string, @Req() req: RequestWithUser) {
-    return this.stockService.applyAdjustment(id, req.user.userId, req.user.tenantId);
+    return this.stockService.applyAdjustment(id, req.user.userId, req.user.tenantId, req.user.username);
   }
 }

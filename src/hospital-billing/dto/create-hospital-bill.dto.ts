@@ -43,6 +43,11 @@ export class CreateHospitalBillDto {
   @IsString()
   admission_id?: string;
 
+  @ApiPropertyOptional({ description: 'Source entity ID (diagnostic booking or admission) for invoice sync' })
+  @IsOptional()
+  @IsString()
+  source_entity_id?: string;
+
   @ApiProperty({ type: [LineItemDto] })
   @IsArray()
   @ValidateNested({ each: true })

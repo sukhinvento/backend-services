@@ -1,16 +1,20 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Admission, AdmissionDocument } from './schemas/admission.schema';
 import { CreateAdmissionDto } from './dto/create-admission.dto';
 import { UpdateAdmissionDto } from './dto/update-admission.dto';
 import { AuditService } from '@audit/audit.service';
+import { KafkaService } from '@kafka/kafka.service';
 
 @Injectable()
 export class AdmissionsService {
+  private readonly logger = new Logger(AdmissionsService.name);
+
   constructor(
     @InjectModel(Admission.name) private admissionModel: Model<AdmissionDocument>,
     private readonly auditService: AuditService,
+    private readonly kafkaService: KafkaService,
   ) {}
 
   private generateAdmissionNumber(): string {
@@ -23,14 +27,15 @@ export class AdmissionsService {
     tenantId: string,
     roomModel: Model<any>,
     patientModel: Model<any>,
+    username?: string,
   ) {
     const admission_number = this.generateAdmissionNumber();
     const newAdmission = new this.admissionModel({
       ...createAdmissionDto,
       admission_number,
       tenantId,
-      createdBy: userId,
-      updatedBy: userId,
+      createdBy: username || userId,
+      updatedBy: username || userId,
     });
     const saved = await newAdmission.save();
 
@@ -83,12 +88,12 @@ export class AdmissionsService {
     return admission;
   }
 
-  async update(id: string, updateAdmissionDto: UpdateAdmissionDto, userId: string, tenantId: string) {
+  async update(id: string, updateAdmissionDto: UpdateAdmissionDto, userId: string, tenantId: string, username?: string) {
     const old = await this.admissionModel.findOne({ _id: id, tenantId }).exec();
     if (!old) throw new NotFoundException('Admission not found');
 
     const updated = await this.admissionModel
-      .findByIdAndUpdate(id, { ...updateAdmissionDto, updatedBy: userId }, { new: true })
+      .findByIdAndUpdate(id, { ...updateAdmissionDto, updatedBy: username || userId }, { new: true })
       .exec();
 
     void this.auditService.log({
@@ -110,6 +115,7 @@ export class AdmissionsService {
     tenantId: string,
     roomModel: Model<any>,
     patientModel: Model<any>,
+    username?: string,
   ) {
     const admission = await this.admissionModel.findOne({ _id: id, tenantId }).exec();
     if (!admission) throw new NotFoundException('Admission not found');
@@ -120,7 +126,7 @@ export class AdmissionsService {
         {
           status: 'discharged',
           actual_discharge_date: new Date(),
-          updatedBy: userId,
+          updatedBy: username || userId,
         },
         { new: true },
       )
@@ -145,6 +151,22 @@ export class AdmissionsService {
       newValue: updated?.toObject(),
       tenantId,
     });
+
+    // Emit event for automatic hospital bill creation
+    void this.kafkaService.sendEvent('billing-events', `discharge-${updated?.id}`, {
+      eventType: 'patient.discharge.completed',
+      entity_id: updated?.id as string,
+      entity_type: 'admission',
+      patient_id: (admission.toObject() as any).patient_id,
+      admission_id: id,
+      admission_number: (admission.toObject() as any).admission_number,
+      admission_date: (admission.toObject() as any).admission_date,
+      actual_discharge_date: (updated?.toObject() as any)?.actual_discharge_date,
+      room_id: (admission.toObject() as any).room_id,
+      tenantId,
+      createdBy: userId,
+      timestamp: new Date().toISOString(),
+    }).catch(err => this.logger.error('Failed to emit discharge event', err));
 
     return updated;
   }

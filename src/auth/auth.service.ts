@@ -64,6 +64,13 @@ export class AuthService {
 
     return {
       access_token: this.jwtService.sign(payload),
+      userId: user.id as string,
+      username: user.username,
+      name: user.name || ((user as any).first_name ? `${(user as any).first_name} ${(user as any).last_name || ''}`.trim() : user.username),
+      email: user.email || '',
+      phone: user.phone || '',
+      department: user.department || '',
+      designation: user.designation || '',
       roles: userRoles.map((role) => role.name),
       scopes,
       tenantId: user.tenantId,
@@ -72,6 +79,92 @@ export class AuthService {
 
   logout() {
     return { message: 'Logged out successfully' };
+  }
+
+  async getProfile(userId: string, username: string, tenantId: string) {
+    const user = await this.findUserByIdOrUsername(userId, username, tenantId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    // Return without password_hash
+    const userObj = user.toObject();
+    delete (userObj as any).password_hash;
+    return userObj;
+  }
+
+  private async findUserByIdOrUsername(userId: string, username: string, tenantId: string) {
+    // Try _id first, then fall back to username (BaseSchema's auto id field may differ from _id)
+    let user = await this.userModel.findOne({ _id: userId, tenantId }).exec();
+    if (!user && username) {
+      user = await this.userModel.findOne({ username, tenantId }).exec();
+    }
+    return user;
+  }
+
+  async updateProfile(userId: string, username: string, updateDto: UpdateUserDto, tenantId: string) {
+    const user = await this.findUserByIdOrUsername(userId, username, tenantId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    // Only allow updating profile fields, not roles/password/tenantId
+    const allowedFields: Record<string, any> = {};
+    if (updateDto.name !== undefined) allowedFields.name = updateDto.name;
+    if (updateDto.email !== undefined) allowedFields.email = updateDto.email;
+    if (updateDto.phone !== undefined) allowedFields.phone = updateDto.phone;
+    if (updateDto.department !== undefined) allowedFields.department = updateDto.department;
+    if (updateDto.designation !== undefined) allowedFields.designation = updateDto.designation;
+
+    const updated = await this.userModel
+      .findByIdAndUpdate(
+        user._id,
+        { ...allowedFields, updatedBy: userId },
+        { new: true },
+      )
+      .select('-password_hash')
+      .exec();
+
+    void this.auditService.log({
+      userId,
+      action: 'update_profile',
+      entity: 'user',
+      entityId: (user._id as any).toString(),
+      oldValue: { name: (user as any).name, email: (user as any).email, phone: (user as any).phone, department: (user as any).department, designation: (user as any).designation },
+      newValue: allowedFields,
+      tenantId,
+    });
+
+    return updated;
+  }
+
+  async changePassword(userId: string, username: string, currentPassword: string, newPassword: string, tenantId: string) {
+    const user = await this.findUserByIdOrUsername(userId, username, tenantId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const isValid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isValid) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    await this.userModel.findByIdAndUpdate(user._id, {
+      password_hash: hashedPassword,
+      updatedBy: userId,
+    }).exec();
+
+    void this.auditService.log({
+      userId,
+      action: 'change_password',
+      entity: 'user',
+      entityId: (user._id as any).toString(),
+      tenantId,
+    });
+
+    return { message: 'Password changed successfully' };
   }
 
   async createUser(createUserDto: CreateUserDto, authUserId: string, authTenantId: string) {
@@ -107,6 +200,11 @@ export class AuthService {
     const newUser = new this.userModel({
       username: createUserDto.username,
       password_hash: hashedPassword,
+      name: createUserDto.name,
+      email: createUserDto.email,
+      phone: createUserDto.phone,
+      department: createUserDto.department,
+      designation: createUserDto.designation,
       roles: createUserDto.roles,
       tenantId: createUserDto.tenantId,
       createdBy: authUserId,

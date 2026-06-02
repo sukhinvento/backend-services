@@ -62,7 +62,8 @@ export class VendorsController {
     @TenantId() tenantId: string,
   ) {
     const userId = req.user.userId;
-    return this.vendorsService.create(createVendorDto, userId, tenantId);
+    const username = req.user.username;
+    return this.vendorsService.create(createVendorDto, userId, tenantId, username);
   }
 
   @ApiOperation({
@@ -210,7 +211,8 @@ export class VendorsController {
     @TenantId() tenantId: string,
   ) {
     const userId = req.user.userId;
-    return this.vendorsService.update(id, updateVendorDto, userId, tenantId);
+    const username = req.user.username;
+    return this.vendorsService.update(id, updateVendorDto, userId, tenantId, username);
   }
 
   @Delete(':id')

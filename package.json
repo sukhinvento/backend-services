@@ -19,6 +19,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed": "ts-node -r tsconfig-paths/register src/scripts/seed-database.ts",
+    "seed-all": "ts-node -r tsconfig-paths/register src/scripts/seed-all.ts",
     "seed-tenants": "ts-node -r tsconfig-paths/register src/scripts/seed-tenants.ts",
     "migrate-tenant": "ts-node -r tsconfig-paths/register src/scripts/migrate-tenant-id.ts"
   },
@@ -37,6 +38,7 @@
     "@types/bcrypt": "^6.0.0",
     "bcrypt": "^6.0.0",
     "joi": "^18.0.1",
+    "kafkajs": "^2.2.4",
     "mongoose": "^8.18.1",
     "nest-winston": "^1.10.2",
     "passport": "^0.7.0",

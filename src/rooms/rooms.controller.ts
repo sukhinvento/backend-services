@@ -36,7 +36,7 @@ export class RoomsController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.roomsService.create(createRoomDto, req.user.userId, tenantId);
+    return this.roomsService.create(createRoomDto, req.user.userId, tenantId, req.user.username);
   }
 
   @Get()
@@ -91,7 +91,7 @@ export class RoomsController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.roomsService.update(id, updateRoomDto, req.user.userId, tenantId);
+    return this.roomsService.update(id, updateRoomDto, req.user.userId, tenantId, req.user.username);
   }
 
   @Delete(':id')

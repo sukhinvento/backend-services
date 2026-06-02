@@ -1,0 +1,17 @@
+{
+  "fields": [
+    { "field_id": "booking_number", "label": "Booking Number", "type": "string", "required": true },
+    { "field_id": "patient_id", "label": "Patient ID", "type": "string", "required": true },
+    { "field_id": "test_name", "label": "Test Name", "type": "string", "required": true },
+    { "field_id": "test_code", "label": "Test Code", "type": "string", "required": true },
+    { "field_id": "category", "label": "Test Category", "type": "enum", "values": ["Pathology", "Radiology", "Microbiology", "Immunology", "Biochemistry", "Hematology"], "required": true },
+    { "field_id": "sample_type", "label": "Sample Type", "type": "enum", "values": ["Blood", "Urine", "Stool", "Saliva", "Tissue", "CSF"], "required": true },
+    { "field_id": "booking_date", "label": "Booking Date", "type": "date", "required": true },
+    { "field_id": "test_date", "label": "Test Date", "type": "date", "required": false },
+    { "field_id": "result_date", "label": "Result Date", "type": "date", "required": false },
+    { "field_id": "status", "label": "Status", "type": "enum", "values": ["Pending", "Completed", "Cancelled", "In Progress"], "required": true },
+    { "field_id": "price", "label": "Test Price (₹)", "type": "string", "required": true },
+    { "field_id": "ordered_by", "label": "Ordered By (Doctor)", "type": "string", "required": true },
+    { "field_id": "notes", "label": "Special Instructions", "type": "string", "required": false }
+  ]
+}

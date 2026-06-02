@@ -5,11 +5,15 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { SalesOrder, SalesOrderSchema } from './schemas/sales-order.schema';
 import { AuthModule } from '@auth/auth.module';
 import { CommonModule } from '@common/common.module';
+import { KafkaModule } from '@kafka/kafka.module';
+import { InvoicesModule } from '@invoices/invoices.module';
 
 @Module({
   imports: [
     AuthModule,
     CommonModule,
+    KafkaModule,
+    InvoicesModule,
     MongooseModule.forFeature([
       { name: SalesOrder.name, schema: SalesOrderSchema },
     ]),

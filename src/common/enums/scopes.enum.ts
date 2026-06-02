@@ -25,4 +25,10 @@ export enum Scope {
   MEDICATIONS = 'medications',
   HOSPITAL_BILLING = 'hospital-billing',
   INVENTORY = 'inventory',
+
+  // Support module scopes
+  TAX = 'tax',
+  ADDRESSES = 'addresses',
+  DISCOUNTS = 'discounts',
+  SETTINGS = 'settings',
 }

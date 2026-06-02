@@ -20,7 +20,7 @@ export class VendorsService {
     private readonly taxService: TaxService,
   ) {}
 
-  async create(createVendorDto: CreateVendorDto, userId: string, tenantId: string) {
+  async create(createVendorDto: CreateVendorDto, userId: string, tenantId: string, username?: string) {
     
     try {
       const fieldConfigs = await this.tenantsService.getFieldConfiguration(
@@ -100,8 +100,8 @@ export class VendorsService {
     const newVendor = new this.vendorModel({
       ...createVendorDto,
       tenantId,
-      createdBy: userId,
-      updatedBy: userId,
+      createdBy: username || userId,
+      updatedBy: username || userId,
     });
     
     try {
@@ -161,7 +161,7 @@ export class VendorsService {
     return this.vendorModel.findOne({ _id: id, tenantId }).exec();
   }
 
-  async update(id: string, updateVendorDto: UpdateVendorDto, userId: string, tenantId: string) {
+  async update(id: string, updateVendorDto: UpdateVendorDto, userId: string, tenantId: string, username?: string) {
     const oldVendor = await this.vendorModel.findOne({ _id: id, tenantId }).exec();
     if (!oldVendor) {
       throw new Error('Vendor not found or access denied');
@@ -211,7 +211,7 @@ export class VendorsService {
     const updatedVendor = await this.vendorModel
       .findByIdAndUpdate(
         id,
-        { ...updateVendorDto, updatedBy: userId },
+        { ...updateVendorDto, updatedBy: username || userId },
         { new: true },
       )
       .exec();

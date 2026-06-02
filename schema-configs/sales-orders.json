@@ -1,0 +1,19 @@
+{
+  "fields": [
+    { "field_id": "order_number", "label": "Order Number", "type": "string", "required": true },
+    { "field_id": "customer_id", "label": "Customer ID", "type": "string", "required": false },
+    { "field_id": "customer_name", "label": "Customer Name", "type": "string", "required": true },
+    { "field_id": "customer_email", "label": "Customer Email", "type": "string", "required": true },
+    { "field_id": "customer_phone", "label": "Customer Phone", "type": "string", "required": true },
+    { "field_id": "customer_address", "label": "Customer Address", "type": "string", "required": true },
+    { "field_id": "order_date", "label": "Order Date", "type": "date", "required": true },
+    { "field_id": "delivery_date", "label": "Delivery Date", "type": "date", "required": true },
+    { "field_id": "status", "label": "Status", "type": "enum", "values": ["Pending", "Processing", "Shipped", "Delivered", "Cancelled", "Partially Shipped"], "required": true },
+    { "field_id": "payment_status", "label": "Payment Status", "type": "enum", "values": ["Pending", "Paid", "Partial", "Overdue"], "required": true },
+    { "field_id": "payment_method", "label": "Payment Method", "type": "enum", "values": ["Cash", "Credit Card", "Bank Transfer", "Cheque", "UPI", "COD"], "required": true },
+    { "field_id": "shipping_address", "label": "Shipping Address", "type": "string", "required": true },
+    { "field_id": "billing_address", "label": "Billing Address", "type": "string", "required": true },
+    { "field_id": "due_date", "label": "Due Date", "type": "date", "required": true },
+    { "field_id": "notes", "label": "Notes", "type": "string", "required": false }
+  ]
+}

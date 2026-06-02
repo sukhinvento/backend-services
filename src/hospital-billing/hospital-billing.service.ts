@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { HospitalBill, HospitalBillDocument } from './schemas/hospital-bill.schema';
@@ -6,12 +6,16 @@ import { CreateHospitalBillDto, LineItemDto } from './dto/create-hospital-bill.d
 import { UpdateHospitalBillDto } from './dto/update-hospital-bill.dto';
 import { RecordPaymentDto } from './dto/record-payment.dto';
 import { AuditService } from '@audit/audit.service';
+import { InvoicesService } from '@invoices/invoices.service';
 
 @Injectable()
 export class HospitalBillingService {
+  private readonly logger = new Logger(HospitalBillingService.name);
+
   constructor(
     @InjectModel(HospitalBill.name) private billModel: Model<HospitalBillDocument>,
     private readonly auditService: AuditService,
+    private readonly invoicesService: InvoicesService,
   ) {}
 
   private generateInvoiceNumber(): string {
@@ -52,7 +56,7 @@ export class HospitalBillingService {
     return { processedItems, subtotal, total_tax, total_discount, grand_total };
   }
 
-  async create(dto: CreateHospitalBillDto, userId: string, tenantId: string) {
+  async create(dto: CreateHospitalBillDto, userId: string, tenantId: string, username?: string) {
     const invoice_number = this.generateInvoiceNumber();
     const { processedItems, subtotal, total_tax, total_discount, grand_total } = this.calculateTotals(dto.line_items);
 
@@ -65,8 +69,8 @@ export class HospitalBillingService {
       total_discount,
       grand_total,
       tenantId,
-      createdBy: userId,
-      updatedBy: userId,
+      createdBy: username || userId,
+      updatedBy: username || userId,
     }).save();
 
     void this.auditService.log({ userId, action: 'create', entity: 'hospital_bill', entityId: saved.id as string, newValue: saved.toObject(), tenantId });
@@ -100,11 +104,11 @@ export class HospitalBillingService {
     return bill;
   }
 
-  async update(id: string, dto: UpdateHospitalBillDto, userId: string, tenantId: string) {
+  async update(id: string, dto: UpdateHospitalBillDto, userId: string, tenantId: string, username?: string) {
     const old = await this.billModel.findOne({ _id: id, tenantId }).exec();
     if (!old) throw new NotFoundException('Bill not found');
 
-    let updateData: any = { ...dto, updatedBy: userId };
+    let updateData: any = { ...dto, updatedBy: username || userId };
 
     // Recalculate if line_items changed
     if (dto.line_items) {
@@ -117,19 +121,19 @@ export class HospitalBillingService {
     return updated;
   }
 
-  async issue(id: string, userId: string, tenantId: string) {
+  async issue(id: string, userId: string, tenantId: string, username?: string) {
     const bill = await this.billModel.findOne({ _id: id, tenantId }).exec();
     if (!bill) throw new NotFoundException('Bill not found');
     const updated = await this.billModel.findByIdAndUpdate(
       id,
-      { status: 'issued', issued_date: new Date(), updatedBy: userId },
+      { status: 'issued', issued_date: new Date(), updatedBy: username || userId },
       { new: true },
     ).exec();
     void this.auditService.log({ userId, action: 'update', entity: 'hospital_bill', entityId: id, oldValue: bill.toObject(), newValue: updated?.toObject(), tenantId });
     return updated;
   }
 
-  async recordPayment(id: string, dto: RecordPaymentDto, userId: string, tenantId: string) {
+  async recordPayment(id: string, dto: RecordPaymentDto, userId: string, tenantId: string, username?: string) {
     const bill = await this.billModel.findOne({ _id: id, tenantId }).exec();
     if (!bill) throw new NotFoundException('Bill not found');
 
@@ -143,12 +147,29 @@ export class HospitalBillingService {
     const updateData: Record<string, any> = {
       paid_amount: newPaidAmount,
       status: newStatus,
-      updatedBy: userId,
+      updatedBy: username || userId,
     };
     if (dto.payment_mode) updateData.payment_mode = dto.payment_mode;
 
     const updated = await this.billModel.findByIdAndUpdate(id, updateData, { new: true }).exec();
     void this.auditService.log({ userId, action: 'update', entity: 'hospital_bill', entityId: id, oldValue: bill.toObject(), newValue: updated?.toObject(), tenantId });
+
+    // Sync payment status to the linked invoice (created by Kafka on diagnostic/discharge events).
+    // The invoice's order_id matches the hospital bill's source_entity_id
+    // (diagnostic booking id for diagnostics, admission id for discharge bills).
+    if (updated) {
+      const billObj = updated.toObject() as any;
+      const paidAmount = billObj.paid_amount || 0;
+      const totalAmount = billObj.grand_total || 0;
+      const sourceId = billObj.source_entity_id || (billObj.admission_id ? String(billObj.admission_id) : null);
+
+      if (sourceId) {
+        void this.invoicesService.updatePaymentByOrderId(
+          sourceId, paidAmount, totalAmount, userId,
+        ).catch(err => this.logger.error(`Failed to sync invoice for source entity ${sourceId}`, err));
+      }
+    }
+
     return updated;
   }
 

@@ -18,7 +18,7 @@ export class QuotationsService {
     private readonly queryBuilder: QueryBuilderService<QuotationDocument>,
   ) {}
 
-  async create(createQuotationDto: CreateQuotationDto, userId: string) {
+  async create(createQuotationDto: CreateQuotationDto, userId: string, username?: string) {
     // TODO: Get tenant from request context
     const tenantId = 'pharma_inc';
     const fieldConfigs = await this.tenantsService.getFieldConfiguration(
@@ -37,8 +37,8 @@ export class QuotationsService {
 
     const newQuotation = new this.quotationModel({
       ...createQuotationDto,
-      createdBy: userId,
-      updatedBy: userId,
+      createdBy: username || userId,
+      updatedBy: username || userId,
     });
     const savedQuotation = await newQuotation.save();
 
@@ -62,12 +62,12 @@ export class QuotationsService {
     return this.quotationModel.findById(id).exec();
   }
 
-  async update(id: string, updateQuotationDto: UpdateQuotationDto, userId: string) {
+  async update(id: string, updateQuotationDto: UpdateQuotationDto, userId: string, username?: string) {
     const oldQuotation = await this.quotationModel.findById(id).exec();
     const updatedQuotation = await this.quotationModel
       .findByIdAndUpdate(
         id,
-        { ...updateQuotationDto, updatedBy: userId },
+        { ...updateQuotationDto, updatedBy: username || userId },
         { new: true },
       )
       .exec();
@@ -100,10 +100,10 @@ export class QuotationsService {
     return { id };
   }
 
-  async approve(id: string, userId: string) {
+  async approve(id: string, userId: string, username?: string) {
     const quotation = await this.quotationModel.findByIdAndUpdate(
       id,
-      { status: 'approved', updatedBy: userId },
+      { status: 'approved', updatedBy: username || userId },
       { new: true },
     ).exec();
 
@@ -120,10 +120,10 @@ export class QuotationsService {
     return quotation;
   }
 
-  async reject(id: string, userId: string) {
+  async reject(id: string, userId: string, username?: string) {
     const quotation = await this.quotationModel.findByIdAndUpdate(
       id,
-      { status: 'rejected', updatedBy: userId },
+      { status: 'rejected', updatedBy: username || userId },
       { new: true },
     ).exec();
 
@@ -140,15 +140,15 @@ export class QuotationsService {
     return quotation;
   }
 
-  async amend(id: string, updateQuotationDto: UpdateQuotationDto, userId: string) {
+  async amend(id: string, updateQuotationDto: UpdateQuotationDto, userId: string, username?: string) {
     const oldQuotation = await this.quotationModel.findById(id).exec();
     const updatedQuotation = await this.quotationModel
       .findByIdAndUpdate(
         id,
-        { 
-          ...updateQuotationDto, 
+        {
+          ...updateQuotationDto,
           status: 'draft',
-          updatedBy: userId 
+          updatedBy: username || userId
         },
         { new: true },
       )

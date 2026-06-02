@@ -62,7 +62,8 @@ export class QuotationsController {
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user.userId;
-    return this.quotationsService.create(createQuotationDto, userId);
+    const username = req.user.username;
+    return this.quotationsService.create(createQuotationDto, userId, username);
   }
 
   @ApiOperation({
@@ -135,7 +136,8 @@ export class QuotationsController {
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user.userId;
-    return this.quotationsService.update(id, updateQuotationDto, userId);
+    const username = req.user.username;
+    return this.quotationsService.update(id, updateQuotationDto, userId, username);
   }
 
   @ApiOperation({
@@ -173,7 +175,8 @@ export class QuotationsController {
   @Roles(Role.ADMIN, Role.MANAGER)
   approve(@Param('id') id: string, @Req() req: RequestWithUser) {
     const userId = req.user.userId;
-    return this.quotationsService.approve(id, userId);
+    const username = req.user.username;
+    return this.quotationsService.approve(id, userId, username);
   }
 
   @ApiOperation({
@@ -194,7 +197,8 @@ export class QuotationsController {
   @Roles(Role.ADMIN, Role.MANAGER)
   reject(@Param('id') id: string, @Req() req: RequestWithUser) {
     const userId = req.user.userId;
-    return this.quotationsService.reject(id, userId);
+    const username = req.user.username;
+    return this.quotationsService.reject(id, userId, username);
   }
 
   @ApiOperation({
@@ -221,6 +225,7 @@ export class QuotationsController {
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user.userId;
-    return this.quotationsService.amend(id, updateQuotationDto, userId);
+    const username = req.user.username;
+    return this.quotationsService.amend(id, updateQuotationDto, userId, username);
   }
 }

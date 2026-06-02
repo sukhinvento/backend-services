@@ -13,12 +13,12 @@ export class RoomsService {
     private readonly auditService: AuditService,
   ) {}
 
-  async create(createRoomDto: CreateRoomDto, userId: string, tenantId: string) {
+  async create(createRoomDto: CreateRoomDto, userId: string, tenantId: string, username?: string) {
     const newRoom = new this.roomModel({
       ...createRoomDto,
       tenantId,
-      createdBy: userId,
-      updatedBy: userId,
+      createdBy: username || userId,
+      updatedBy: username || userId,
     });
     const saved = await newRoom.save();
 
@@ -74,12 +74,12 @@ export class RoomsService {
     return room;
   }
 
-  async update(id: string, updateRoomDto: UpdateRoomDto, userId: string, tenantId: string) {
+  async update(id: string, updateRoomDto: UpdateRoomDto, userId: string, tenantId: string, username?: string) {
     const old = await this.roomModel.findOne({ _id: id, tenantId }).exec();
     if (!old) throw new NotFoundException('Room not found');
 
     const updated = await this.roomModel
-      .findByIdAndUpdate(id, { ...updateRoomDto, updatedBy: userId }, { new: true })
+      .findByIdAndUpdate(id, { ...updateRoomDto, updatedBy: username || userId }, { new: true })
       .exec();
 
     void this.auditService.log({

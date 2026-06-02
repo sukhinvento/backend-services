@@ -50,6 +50,7 @@ export class AdmissionsController {
       tenantId,
       this.roomModel,
       this.patientModel,
+      req.user.username,
     );
   }
 
@@ -106,7 +107,7 @@ export class AdmissionsController {
     @Req() req: RequestWithUser,
     @TenantId() tenantId: string,
   ) {
-    return this.admissionsService.update(id, updateAdmissionDto, req.user.userId, tenantId);
+    return this.admissionsService.update(id, updateAdmissionDto, req.user.userId, tenantId, req.user.username);
   }
 
   @Post(':id/discharge')
@@ -124,6 +125,7 @@ export class AdmissionsController {
       tenantId,
       this.roomModel,
       this.patientModel,
+      req.user.username,
     );
   }
 

@@ -17,14 +17,14 @@ export class PatientsService {
     return `PAT-${Date.now().toString(36).toUpperCase()}`;
   }
 
-  async create(createPatientDto: CreatePatientDto, userId: string, tenantId: string) {
+  async create(createPatientDto: CreatePatientDto, userId: string, tenantId: string, username?: string) {
     const patient_id = createPatientDto.patient_id || this.generatePatientId();
     const newPatient = new this.patientModel({
       ...createPatientDto,
       patient_id,
       tenantId,
-      createdBy: userId,
-      updatedBy: userId,
+      createdBy: username || userId,
+      updatedBy: username || userId,
     });
     const saved = await newPatient.save();
 
@@ -88,12 +88,12 @@ export class PatientsService {
     return patient;
   }
 
-  async update(id: string, updatePatientDto: UpdatePatientDto, userId: string, tenantId: string) {
+  async update(id: string, updatePatientDto: UpdatePatientDto, userId: string, tenantId: string, username?: string) {
     const old = await this.patientModel.findOne({ _id: id, tenantId }).exec();
     if (!old) throw new NotFoundException('Patient not found');
 
     const updated = await this.patientModel
-      .findByIdAndUpdate(id, { ...updatePatientDto, updatedBy: userId }, { new: true })
+      .findByIdAndUpdate(id, { ...updatePatientDto, updatedBy: username || userId }, { new: true })
       .exec();
 
     void this.auditService.log({

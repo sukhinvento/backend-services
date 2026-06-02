@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsArray, IsNumber, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsNumber, IsEnum, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class ScheduleSlotDto {
   @IsString()
@@ -79,6 +80,8 @@ export class CreateDoctorDto {
   @ApiPropertyOptional({ type: [ScheduleSlotDto] })
   @IsOptional()
   @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ScheduleSlotDto)
   schedule?: ScheduleSlotDto[];
 
   @ApiPropertyOptional()

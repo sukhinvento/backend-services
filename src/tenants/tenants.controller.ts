@@ -59,7 +59,8 @@ export class TenantsController {
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user.userId;
-    return this.tenantsService.create(createTenantDto, userId);
+    const username = req.user.username;
+    return this.tenantsService.create(createTenantDto, userId, username);
   }
 
   @ApiOperation({
@@ -128,7 +129,8 @@ export class TenantsController {
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user.userId;
-    return this.tenantsService.update(id, updateTenantDto, userId);
+    const username = req.user.username;
+    return this.tenantsService.update(id, updateTenantDto, userId, username);
   }
 
   @ApiOperation({
@@ -176,11 +178,13 @@ export class TenantsController {
     @Req() req: RequestWithUser,
   ) {
     const userId = req.user.userId;
+    const username = req.user.username;
     return this.tenantsService.createFieldConfiguration(
       tenant,
       module,
       createFieldConfigurationDto,
       userId,
+      username,
     );
   }
 
