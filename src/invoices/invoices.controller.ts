@@ -16,9 +16,9 @@ import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import type { RequestWithUser } from '@common/interfaces/request-with-user.interface';
 import { JwtAuthGuard } from '@auth/jwt-auth.guard';
 import { RolesGuard, ScopesGuard } from '@common/guards';
-import { Roles, Scopes } from '@common/decorators';
+import { Roles, Scopes, TenantId } from '@common/decorators';
 import { Role, Scope } from '@common/enums';
-import { ApiTags, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { QueryDto } from '@common/dto/query.dto';
 
 @ApiTags('invoices')
@@ -48,6 +48,33 @@ export class InvoicesController {
   findAll(@Query() query: Omit<QueryDto, 'filter'>) {
     const { page, limit, sort, ...filter } = query;
     return this.invoicesService.findAll({ page, limit, sort, filter });
+  }
+
+  @Get('analytics/weekly')
+  @Scopes(Scope.INVOICES)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.VIEWER)
+  @ApiOperation({ summary: 'Get weekly invoice collection trend' })
+  @ApiQuery({ name: 'weeks', required: false })
+  getWeeklyAnalytics(@TenantId() tenantId: string, @Query('weeks') weeks?: string) {
+    return this.invoicesService.getWeeklyAnalytics(tenantId, weeks ? parseInt(weeks, 10) : 12);
+  }
+
+  @Get('analytics/monthly')
+  @Scopes(Scope.INVOICES)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.VIEWER)
+  @ApiOperation({ summary: 'Get monthly revenue trend (SO + diagnostics + admissions)' })
+  @ApiQuery({ name: 'months', required: false })
+  getMonthlyAnalytics(@TenantId() tenantId: string, @Query('months') months?: string) {
+    return this.invoicesService.getMonthlyAnalytics(tenantId, months ? parseInt(months, 10) : 12);
+  }
+
+  @Get('analytics/expenditure/monthly')
+  @Scopes(Scope.INVOICES)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.USER, Role.VIEWER)
+  @ApiOperation({ summary: 'Get monthly expenditure trend (purchase orders only)' })
+  @ApiQuery({ name: 'months', required: false })
+  getMonthlyExpenditureAnalytics(@TenantId() tenantId: string, @Query('months') months?: string) {
+    return this.invoicesService.getMonthlyExpenditureAnalytics(tenantId, months ? parseInt(months, 10) : 12);
   }
 
   @Get(':id')

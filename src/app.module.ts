@@ -22,10 +22,20 @@ import { RoomsModule } from './rooms/rooms.module';
 import { AdmissionsModule } from './admissions/admissions.module';
 import { DiagnosticsModule } from './diagnostics/diagnostics.module';
 import { MedicationsModule } from './medications/medications.module';
-import { HospitalBillingModule } from './hospital-billing/hospital-billing.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { KafkaModule } from './kafka/kafka.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { AbdmModule } from './abdm/abdm.module';
+import { OpdVisitsModule } from './opd-visits/opd-visits.module';
+import { LocationsModule } from './locations/locations.module';
+import { DepartmentsModule } from './departments/departments.module';
+
+// ── Finance modules ───────────────────────────────────────────────────────
+import { AccountsModule } from './accounts/accounts.module';
+import { JournalEntriesModule } from './journal-entries/journal-entries.module';
+import { BankAccountsModule } from './bank-accounts/bank-accounts.module';
+import { PayrollModule } from './payroll/payroll.module';
+import { FixedAssetsModule } from './fixed-assets/fixed-assets.module';
 
 @Module({
   imports: [
@@ -51,9 +61,19 @@ import { NotificationsModule } from './notifications/notifications.module';
     AdmissionsModule,
     DiagnosticsModule,
     MedicationsModule,
-    HospitalBillingModule,
     InventoryModule,
+    LocationsModule,
+    DepartmentsModule,
     NotificationsModule,
+    AbdmModule,
+    OpdVisitsModule,
+
+    // Finance
+    AccountsModule,
+    JournalEntriesModule,
+    BankAccountsModule,
+    PayrollModule,
+    FixedAssetsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

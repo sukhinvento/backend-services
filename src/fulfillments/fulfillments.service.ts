@@ -55,7 +55,7 @@ export class FulfillmentsService {
   }
 
   async findAll(query: QueryDto) {
-    return this.queryBuilder.buildQuery(this.fulfillmentModel, query).exec();
+    return await this.queryBuilder.buildQuery(this.fulfillmentModel, query);
   }
 
   async findOne(id: string) {

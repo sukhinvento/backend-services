@@ -137,7 +137,7 @@ export class VendorsService {
         tenantId,
       },
     };
-    return this.vendorQueryService.buildQuery(this.vendorModel, queryWithTenant).exec();
+    return await this.vendorQueryService.buildQuery(this.vendorModel, queryWithTenant);
   }
 
   // Additional vendor-specific query methods

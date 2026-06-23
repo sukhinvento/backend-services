@@ -55,7 +55,7 @@ export class QuotationsService {
   }
 
   async findAll(query: QueryDto) {
-    return this.queryBuilder.buildQuery(this.quotationModel, query).exec();
+    return await this.queryBuilder.buildQuery(this.quotationModel, query);
   }
 
   async findOne(id: string) {

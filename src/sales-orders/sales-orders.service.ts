@@ -4,11 +4,16 @@ import { Model } from 'mongoose';
 import { CreateSalesOrderDto } from './dto/create-sales-order.dto';
 import { UpdateSalesOrderDto } from './dto/update-sales-order.dto';
 import { SalesOrder, SalesOrderDocument } from './schemas/sales-order.schema';
+import { InventoryItem, InventoryItemDocument } from '../inventory/schemas/inventory-item.schema';
+import { InventoryLocation, InventoryLocationDocument } from '../inventory/schemas/inventory-location.schema';
 import { AuditService } from '@audit/audit.service';
 import { QueryDto } from '@common/dto/query.dto';
 import { QueryBuilderService } from '@common/services/query-builder.service';
 import { KafkaService } from '@kafka/kafka.service';
 import { InvoicesService } from '@invoices/invoices.service';
+
+/** SO statuses that mean goods have been shipped/dispatched */
+const SHIPPED_STATUSES = ['shipped', 'delivered', 'fulfilled', 'completed'];
 
 @Injectable()
 export class SalesOrdersService {
@@ -17,6 +22,10 @@ export class SalesOrdersService {
   constructor(
     @InjectModel(SalesOrder.name)
     private salesOrderModel: Model<SalesOrderDocument>,
+    @InjectModel(InventoryItem.name)
+    private inventoryItemModel: Model<InventoryItemDocument>,
+    @InjectModel(InventoryLocation.name)
+    private inventoryLocationModel: Model<InventoryLocationDocument>,
     private readonly auditService: AuditService,
     private readonly queryBuilder: QueryBuilderService<SalesOrderDocument>,
     private readonly kafkaService: KafkaService,
@@ -75,9 +84,7 @@ export class SalesOrdersService {
 
   async findAll(query: QueryDto, tenantId: string) {
     const tenantFilter = { ...query.filter, tenantId };
-    return this.queryBuilder
-      .buildQuery(this.salesOrderModel, { ...query, filter: tenantFilter })
-      .exec();
+    return await this.queryBuilder.buildQuery(this.salesOrderModel, { ...query, filter: tenantFilter });
   }
 
   async findOne(id: string) {
@@ -105,8 +112,6 @@ export class SalesOrdersService {
     });
 
     // Sync invoice status when paid_amount changes
-    // IMPORTANT: Use the document's `id` field (BaseSchema), NOT the `_id` URL param,
-    // because the invoice's order_id was set from `savedSalesOrder.id` during Kafka creation.
     if (updateSalesOrderDto.paid_amount !== undefined && updatedSalesOrder) {
       const so = updatedSalesOrder.toObject() as any;
       const paidAmount = so.paid_amount || 0;
@@ -114,6 +119,75 @@ export class SalesOrdersService {
       const orderId = so.id || id;
       void this.invoicesService.updatePaymentByOrderId(orderId, paidAmount, totalAmount, userId)
         .catch(err => this.logger.error(`Failed to sync invoice for SO ${orderId}`, err));
+    }
+
+    // ── When SO status → Shipped/Delivered: reduce inventory stock ──
+    const oldStatus = String((oldSalesOrder as any)?.status || '').toLowerCase();
+    const newStatus = String(updateSalesOrderDto.status || '').toLowerCase();
+    const isNewShipped = SHIPPED_STATUSES.includes(newStatus) && !SHIPPED_STATUSES.includes(oldStatus);
+
+    if (isNewShipped && updatedSalesOrder) {
+      const soObj = updatedSalesOrder.toObject() as any;
+      const soItems: any[] = soObj.items || [];
+      const sourceLocation = soObj.shipping_address || soObj.source_location || '';
+
+      for (const item of soItems) {
+        const qty = item.quantity ?? item.qty ?? 0;
+        const itemId = item.item_id || item.inventory_id;
+        const itemName = item.name || '';
+        const itemSku = item.sku || '';
+        if (qty <= 0) continue;
+
+        try {
+          let inventoryDoc: any = null;
+
+          if (itemId) {
+            await this.inventoryItemModel.updateOne(
+              { _id: itemId, tenantId },
+              { $inc: { current_stock: -qty } },
+            ).exec();
+            inventoryDoc = await this.inventoryItemModel.findOne({ _id: itemId, tenantId }).exec();
+            this.logger.log(`SO ${id} shipped: -${qty} from inventory item ${itemId}`);
+          } else if (itemName || itemSku) {
+            const filter: any = { tenantId };
+            if (itemSku) filter.sku = itemSku;
+            else filter.name = { $regex: `^${itemName}`, $options: 'i' };
+            const result = await this.inventoryItemModel.updateOne(
+              filter,
+              { $inc: { current_stock: -qty } },
+            ).exec();
+            if (result.modifiedCount > 0) {
+              inventoryDoc = await this.inventoryItemModel.findOne(filter).exec();
+              this.logger.log(`SO ${id} shipped: -${qty} from inventory "${itemSku || itemName}"`);
+            } else {
+              this.logger.warn(`SO ${id}: no inventory item found for "${itemSku || itemName}"`);
+            }
+          }
+
+          // ── Also reduce location-wise stock if location tracking exists ──
+          if (inventoryDoc && sourceLocation) {
+            await this.inventoryLocationModel.updateOne(
+              { inventory_item_id: inventoryDoc._id, location_name: sourceLocation, tenantId },
+              { $inc: { quantity: -qty } },
+            ).exec();
+          }
+        } catch (err) {
+          this.logger.error(`SO ${id}: failed to reduce stock for item "${itemName}"`, err);
+        }
+      }
+
+      // ── Update linked invoice status from 'draft' → 'pending' ──
+      const soOrderId = soObj.id || id;
+      void this.invoicesService.updateStatusByOrderId(soOrderId, 'pending', userId)
+        .catch(err => this.logger.error(`Failed to update invoice status for SO ${soOrderId}`, err));
+    }
+
+    // ── When SO status → confirmed: also update invoice to 'pending' ──
+    if (newStatus === 'confirmed' && oldStatus !== 'confirmed' && updatedSalesOrder) {
+      const soObj = updatedSalesOrder.toObject() as any;
+      const soOrderId = soObj.id || id;
+      void this.invoicesService.updateStatusByOrderId(soOrderId, 'pending', userId)
+        .catch(err => this.logger.error(`Failed to update invoice status for SO ${soOrderId}`, err));
     }
 
     return updatedSalesOrder;

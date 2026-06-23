@@ -6,6 +6,8 @@ import { CreateAdmissionDto } from './dto/create-admission.dto';
 import { UpdateAdmissionDto } from './dto/update-admission.dto';
 import { AuditService } from '@audit/audit.service';
 import { KafkaService } from '@kafka/kafka.service';
+import { AbdmService } from '../abdm/abdm.service';
+import { Patient } from '../patients/schemas/patient.schema';
 
 @Injectable()
 export class AdmissionsService {
@@ -13,8 +15,10 @@ export class AdmissionsService {
 
   constructor(
     @InjectModel(Admission.name) private admissionModel: Model<AdmissionDocument>,
+    @InjectModel(Patient.name) private patientModel: Model<any>,
     private readonly auditService: AuditService,
     private readonly kafkaService: KafkaService,
+    private readonly abdmService: AbdmService,
   ) {}
 
   private generateAdmissionNumber(): string {
@@ -68,14 +72,22 @@ export class AdmissionsService {
     patient_id?: string,
     doctor_id?: string,
     room_id?: string,
+    page = 1,
+    limit = 25,
   ) {
+    const safeLimit = Math.min(limit, 100);
+    const skip = (page - 1) * safeLimit;
     const filter: Record<string, any> = { tenantId };
     if (status) filter.status = status;
     if (patient_id) filter.patient_id = patient_id;
     if (doctor_id) filter.doctor_id = doctor_id;
     if (room_id) filter.room_id = room_id;
 
-    return this.admissionModel.find(filter).sort({ admission_date: -1 }).exec();
+    const [data, total] = await Promise.all([
+      this.admissionModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(safeLimit).exec(),
+      this.admissionModel.countDocuments(filter).exec(),
+    ]);
+    return { data, total, page, limit: safeLimit };
   }
 
   async findActive(tenantId: string) {
@@ -167,6 +179,27 @@ export class AdmissionsService {
       createdBy: userId,
       timestamp: new Date().toISOString(),
     }).catch(err => this.logger.error('Failed to emit discharge event', err));
+
+    // ABDM: auto-add care context if ABDM is enabled for this tenant
+    // This is a no-op when ABDM_ENABLED=false — completely transparent
+    const adm = admission.toObject() as any;
+    void this.patientModel
+      .findById(adm.patient_id)
+      .select('abha_address abha_linked')
+      .lean()
+      .exec()
+      .then(async (patient: any) => {
+        if (!patient?.abha_linked || !patient?.abha_address) return;
+        await this.abdmService.addCareContext(
+          tenantId,
+          String(adm.patient_id),
+          patient.abha_address,
+          'admission',
+          adm.admission_number,
+          `IPD Discharge - ${adm.admission_number}`,
+        );
+      })
+      .catch(err => this.logger.error('ABDM care context error on discharge', err));
 
     return updated;
   }

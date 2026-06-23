@@ -16,6 +16,9 @@ export enum Scope {
   // System level access
   SYSTEM_ADMIN = 'system-admin',
 
+  // Finance scopes
+  FINANCE = 'finance',
+
   // Healthcare scopes
   PATIENTS = 'patients',
   DOCTORS = 'doctors',
@@ -23,6 +26,6 @@ export enum Scope {
   ADMISSIONS = 'admissions',
   DIAGNOSTICS = 'diagnostics',
   MEDICATIONS = 'medications',
-  HOSPITAL_BILLING = 'hospital-billing',
   INVENTORY = 'inventory',
+  LOCATIONS = 'locations',
 }

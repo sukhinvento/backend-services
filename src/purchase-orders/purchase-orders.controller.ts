@@ -108,6 +108,37 @@ export class PurchaseOrdersController {
     return this.purchaseOrdersService.remove(id, req.user.userId, tenantId);
   }
 
+  @Post('reorder')
+  @Scopes(Scope.PURCHASE_ORDERS)
+  @Roles(Role.ADMIN, Role.MANAGER)
+  @ApiOperation({
+    summary: 'Create a draft reorder PO from low-stock items',
+    description: 'Creates a draft PO with the supplied items. The user can edit the draft before approving.',
+  })
+  reorder(
+    @Body() body: {
+      items: Array<{
+        inventory_item_id?: string;
+        name: string;
+        sku?: string;
+        quantity: number;
+        unit_price?: number;
+        batch_number?: string;
+        expiry_date?: string;
+      }>;
+      vendor_id?: string;
+      vendor_name?: string;
+      shipping_address?: string;
+      notes?: string;
+    },
+    @Req() req: RequestWithUser,
+    @TenantId() tenantId: string,
+  ) {
+    return this.purchaseOrdersService.createReorderPO(
+      body, req.user.userId, tenantId, req.user.username,
+    );
+  }
+
   @Post(':id/approve')
   @Scopes(Scope.PURCHASE_ORDERS)
   @Roles(Role.ADMIN, Role.MANAGER)

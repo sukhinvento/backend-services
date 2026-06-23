@@ -150,31 +150,34 @@ export class EnhancedQueryBuilderService<T> {
     return mongoQuery;
   }
 
-  buildQuery(model: Model<T>, queryDto: QueryDto) {
-    const { page = 1, limit = 10, sort, filter } = queryDto;
+  async buildQuery(model: Model<T>, queryDto: QueryDto) {
+    const { page = 1, limit = 25, sort, filter } = queryDto;
+    const safeLimit = Math.min(limit, 100);
     const config = this.getFieldMappingConfig(model);
 
-    const query = model.find();
+    const mongoFilter: Record<string, any> = {};
 
     if (filter) {
       const mongoQuery = this.buildMongoQuery(filter, config);
-      query.where(mongoQuery);
+      Object.assign(mongoFilter, mongoQuery);
     }
 
-    if (sort) {
-      const sortFields = sort.split(',').map(sortField => {
-        const [field, order] = sortField.split('_');
-        const resolvedField = this.resolveFieldName(field, config);
-        return { [resolvedField]: order === 'desc' ? -1 : 1 };
-      });
-      
-      const sortObject = sortFields.reduce((acc, curr) => ({ ...acc, ...curr }), {});
-      query.sort(sortObject as any);
-    }
+    // Default sort: createdAt descending
+    const sortObject: Record<string, any> = sort
+      ? sort.split(',').reduce((acc, sortField) => {
+          const [field, order] = sortField.replace(':', '_').split('_');
+          const resolvedField = this.resolveFieldName(field, config);
+          acc[resolvedField] = order === 'asc' ? 1 : -1;
+          return acc;
+        }, {} as Record<string, any>)
+      : { createdAt: -1 };
 
-    query.skip((page - 1) * limit).limit(limit);
+    const [data, total] = await Promise.all([
+      model.find(mongoFilter).sort(sortObject as any).skip((page - 1) * safeLimit).limit(safeLimit).exec(),
+      model.countDocuments(mongoFilter).exec(),
+    ]);
 
-    return query;
+    return { data, total, page, limit: safeLimit };
   }
 
   // Method to get available filter fields for API documentation

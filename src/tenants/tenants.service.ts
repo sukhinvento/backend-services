@@ -39,32 +39,41 @@ export class TenantsService {
   }
 
   async findAll(query: QueryDto) {
-    return this.queryBuilder.buildQuery(this.tenantModel, query).exec();
+    return await this.queryBuilder.buildQuery(this.tenantModel, query);
   }
 
   async findOne(id: string) {
-    return this.tenantModel.findById(id).exec();
+    return this.findTenantByIdOrSlug(id);
   }
 
   async update(id: string, updateTenantDto: UpdateTenantDto, userId: string, username?: string) {
-    const oldTenant = await this.tenantModel.findById(id).exec();
-    const updatedTenant = await this.tenantModel
-      .findByIdAndUpdate(
-        id,
-        { ...updateTenantDto, updatedBy: username || userId },
-        { new: true },
-      )
-      .exec();
+    const tenant = await this.findTenantByIdOrSlug(id);
+    if (!tenant) return null;
+    const oldTenant = tenant.toObject();
+    const rawId = tenant._id;
+    const isObjectId = /^[0-9a-f]{24}$/i.test(String(rawId));
+
+    let updatedTenant;
+    if (isObjectId) {
+      updatedTenant = await this.tenantModel
+        .findByIdAndUpdate(rawId, { ...updateTenantDto, updatedBy: username || userId }, { new: true })
+        .exec();
+    } else {
+      // String _id — use raw collection update then re-fetch
+      await this.tenantModel.collection.updateOne(
+        { _id: rawId as any },
+        { $set: { ...updateTenantDto, updatedBy: username || userId } },
+      );
+      updatedTenant = await this.findTenantByIdOrSlug(id);
+    }
 
     void this.auditService.log({
       userId,
       action: 'update',
       entity: 'tenant',
       entityId: id,
-
-      oldValue: oldTenant?.toObject(),
-
-      newValue: updatedTenant?.toObject(),
+      oldValue: oldTenant,
+      newValue: updatedTenant?.toObject?.() ?? updatedTenant,
       tenantId: id,
     });
 
@@ -99,11 +108,32 @@ export class TenantsService {
       throw new Error('Tenant not found');
     }
 
+    // Ensure fieldConfigurations Map is initialized
+    if (!tenant.fieldConfigurations) {
+      tenant.fieldConfigurations = new Map();
+    }
+
     const oldConfig = tenant.fieldConfigurations.get(module);
 
     tenant.fieldConfigurations.set(module, createFieldConfigurationDto.fields);
     tenant.updatedBy = username || userId;
-    const savedTenant = await tenant.save();
+
+    // Use raw update for string _id tenants (avoid CastError on save)
+    const rawId = tenant._id;
+    const isObjId = /^[0-9a-f]{24}$/i.test(String(rawId));
+    let savedTenant;
+    if (isObjId) {
+      savedTenant = await tenant.save();
+    } else {
+      // Convert Map to plain object for raw update
+      const fcObj: Record<string, any> = {};
+      tenant.fieldConfigurations.forEach((val, key) => { fcObj[key] = val; });
+      await this.tenantModel.collection.updateOne(
+        { _id: rawId as any },
+        { $set: { fieldConfigurations: fcObj, updatedBy: username || userId } },
+      );
+      savedTenant = await this.findTenantByIdOrSlug(String(rawId));
+    }
 
     void this.auditService.log({
       userId,
@@ -120,14 +150,36 @@ export class TenantsService {
 
   private async findTenantByIdOrSlug(tenantId: string) {
     const isObjectId = /^[0-9a-f]{24}$/i.test(tenantId);
+
+    // If it looks like an ObjectId, use Mongoose findById
     if (isObjectId) {
-      return this.tenantModel.findById(tenantId).exec();
+      const byId = await this.tenantModel.findById(tenantId).exec();
+      if (byId) return byId;
     }
+
+    // For string _id values (e.g. "default_tenant") — use raw collection query
+    // to bypass Mongoose ObjectId casting
+    const rawDoc = await this.tenantModel.collection.findOne({ _id: tenantId as any });
+    if (rawDoc) {
+      // Hydrate back into a Mongoose document for consistency
+      return this.tenantModel.hydrate(rawDoc);
+    }
+
+    // Fallback: try by slug
+    const bySlug = await this.tenantModel.findOne({ slug: tenantId }).exec();
+    if (bySlug) return bySlug;
+
+    // Fallback: try by tenantId field
     return this.tenantModel.findOne({ tenantId }).exec();
   }
 
   async getFieldConfiguration(tenantId: string, module: string) {
     const tenant = await this.findTenantByIdOrSlug(tenantId);
     return tenant?.fieldConfigurations?.get(module) ?? [];
+  }
+
+  /** Return the full tenant document for a given tenantId slug (used by invoice handler) */
+  async findByTenantId(tenantId: string) {
+    return this.findTenantByIdOrSlug(tenantId);
   }
 }

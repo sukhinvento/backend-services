@@ -19,8 +19,8 @@ export const ROLE_DEFAULT_SCOPES: Record<Role, Scope[]> = {
     Scope.ADMISSIONS,
     Scope.DIAGNOSTICS,
     Scope.MEDICATIONS,
-    Scope.HOSPITAL_BILLING,
     Scope.INVENTORY,
+    Scope.LOCATIONS,
   ],
   [Role.USER]: [
     Scope.PURCHASE_ORDERS,
@@ -50,7 +50,6 @@ export const ROLE_DEFAULT_SCOPES: Record<Role, Scope[]> = {
     Scope.ROOMS,
   ],
   [Role.BILLING_STAFF]: [
-    Scope.HOSPITAL_BILLING,
     Scope.INVOICES,
     Scope.PATIENTS,
   ],
@@ -61,6 +60,7 @@ export const ROLE_DEFAULT_SCOPES: Record<Role, Scope[]> = {
   [Role.PHARMACIST]: [
     Scope.MEDICATIONS,
     Scope.INVENTORY,
+    Scope.LOCATIONS,
     Scope.PATIENTS,
   ],
 };

@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsNumber, IsArray } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsArray, IsBoolean } from 'class-validator';
 
 export class InvoiceItemDto {
   @ApiPropertyOptional()
@@ -13,6 +13,10 @@ export class InvoiceItemDto {
   @ApiPropertyOptional()
   @IsOptional() @IsString()
   sku?: string;
+
+  @ApiPropertyOptional({ description: 'HSN code for goods / SAC code for services' })
+  @IsOptional() @IsString()
+  hsn_code?: string;
 
   @ApiPropertyOptional()
   @IsOptional() @IsNumber()
@@ -56,13 +60,17 @@ export class TaxBreakdownDto {
   @IsOptional() @IsNumber()
   taxable_amount?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Central GST — intra-state only' })
   @IsOptional() @IsNumber()
   cgst?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'State GST — intra-state only' })
   @IsOptional() @IsNumber()
   sgst?: number;
+
+  @ApiPropertyOptional({ description: 'Integrated GST — inter-state only' })
+  @IsOptional() @IsNumber()
+  igst?: number;
 
   @ApiPropertyOptional()
   @IsOptional() @IsNumber()
@@ -94,7 +102,7 @@ export class CreateInvoiceDto {
   @IsOptional() @IsString()
   status?: string;
 
-  // Vendor details
+  // ── Vendor details (PO invoices) ─────────────────────────────────────────
   @IsOptional() @IsString()
   vendor_name?: string;
 
@@ -110,7 +118,7 @@ export class CreateInvoiceDto {
   @IsOptional() @IsString()
   vendor_address?: string;
 
-  // Customer details
+  // ── Customer details (SO / diagnostic / admission invoices) ───────────────
   @IsOptional() @IsString()
   customer_name?: string;
 
@@ -126,19 +134,22 @@ export class CreateInvoiceDto {
   @IsOptional() @IsString()
   customer_address?: string;
 
-  // Source reference
+  // ── Source reference ─────────────────────────────────────────────────────
   @IsOptional() @IsString()
   source_type?: string;
 
   @IsOptional() @IsString()
   source_number?: string;
 
-  // Order metadata
+  // ── Order metadata ───────────────────────────────────────────────────────
   @IsOptional() @IsString()
   order_date?: string;
 
   @IsOptional() @IsString()
   delivery_date?: string;
+
+  @IsOptional() @IsString()
+  due_date?: string;
 
   @IsOptional() @IsString()
   payment_method?: string;
@@ -149,7 +160,23 @@ export class CreateInvoiceDto {
   @IsOptional() @IsString()
   notes?: string;
 
-  // GST breakdown
+  // ── GST fields ───────────────────────────────────────────────────────────
+  @IsOptional() @IsString()
+  seller_gstin?: string;
+
+  @IsOptional() @IsString()
+  buyer_gstin?: string;
+
+  @IsOptional() @IsString()
+  place_of_supply?: string;
+
+  @IsOptional() @IsBoolean()
+  is_inter_state?: boolean;
+
+  @IsOptional() @IsString()
+  invoice_type?: string;   // 'tax_invoice' | 'bill_of_supply'
+
+  // ── GST breakdown ─────────────────────────────────────────────────────────
   @IsOptional() @IsArray()
   tax_breakdown?: TaxBreakdownDto[];
 

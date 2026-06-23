@@ -88,7 +88,33 @@ export class Invoice extends BaseSchema {
   @Prop()
   notes: string;
 
-  // ── GST summary ──
+  // ── GST identity ────────────────────────────────────────────────────────
+  /** Seller's GSTIN (hospital/entity issuing the invoice) */
+  @Prop()
+  seller_gstin: string;
+
+  /** Buyer's GSTIN (vendor for PO invoices; customer GSTIN for B2B SO invoices) */
+  @Prop()
+  buyer_gstin: string;
+
+  /** 2-digit state code of the place of supply (determines IGST vs CGST+SGST) */
+  @Prop()
+  place_of_supply: string;
+
+  /** true = inter-state transaction → IGST applies; false = intra-state → CGST+SGST */
+  @Prop({ default: false })
+  is_inter_state: boolean;
+
+  /** 'tax_invoice' (GST registered parties) | 'bill_of_supply' (exempt/composition) */
+  @Prop({ default: 'tax_invoice' })
+  invoice_type: string;
+
+  /** Due date for payment */
+  @Prop()
+  due_date: string;
+
+  // ── GST summary ──────────────────────────────────────────────────────────
+  /** Per-slab breakdown: { rate, taxable_amount, cgst, sgst, igst, total_tax } */
   @Prop({ type: [MongooseSchema.Types.Mixed], default: [] })
   tax_breakdown: Record<string, any>[];
 

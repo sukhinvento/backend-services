@@ -57,6 +57,14 @@ export class InventoryItem extends BaseSchema {
   @Prop()
   expiry_date: string;
 
+  /** HSN code (Harmonised System of Nomenclature) for goods — required for GST invoice */
+  @Prop()
+  hsn_code: string;
+
+  /** SAC code (Services Accounting Code) — for service items */
+  @Prop()
+  sac_code: string;
+
   @Prop()
   barcode: string;
 

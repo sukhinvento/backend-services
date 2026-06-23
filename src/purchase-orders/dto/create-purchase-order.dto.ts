@@ -67,6 +67,16 @@ export class CreatePurchaseOrderDto {
   @IsString()
   vendor_address?: string;
 
+  @ApiPropertyOptional({ example: '29AAACR5055K1Z5', description: 'Vendor GSTIN for GST invoice' })
+  @IsOptional()
+  @IsString()
+  vendor_gstin?: string;
+
+  @ApiPropertyOptional({ example: '29', description: 'Vendor state code (2-digit) for IGST vs CGST+SGST determination' })
+  @IsOptional()
+  @IsString()
+  vendor_state_code?: string;
+
   @ApiPropertyOptional({ example: 'Ward B, Floor 2' })
   @IsOptional()
   @IsString()

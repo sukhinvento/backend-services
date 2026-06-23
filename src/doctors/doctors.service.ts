@@ -1,21 +1,72 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Doctor, DoctorDocument } from './schemas/doctor.schema';
 import { CreateDoctorDto } from './dto/create-doctor.dto';
 import { UpdateDoctorDto } from './dto/update-doctor.dto';
 import { AuditService } from '@audit/audit.service';
+import { CryptoService } from '@common/crypto/crypto.service';
+import { DepartmentsService } from '../departments/departments.service';
+
+const PII_FIELDS = ['name', 'dob', 'phone', 'email', 'registration_no'];
+const SEARCHABLE_PII = ['phone', 'email'];
 
 @Injectable()
 export class DoctorsService {
   constructor(
     @InjectModel(Doctor.name) private doctorModel: Model<DoctorDocument>,
     private readonly auditService: AuditService,
+    private readonly cryptoService: CryptoService,
+    private readonly departmentsService: DepartmentsService,
   ) {}
 
+  private encryptPii(data: Record<string, any>): Record<string, any> {
+    const out = { ...data };
+    for (const field of PII_FIELDS) {
+      if (typeof out[field] === 'string' && out[field].length > 0) {
+        if (SEARCHABLE_PII.includes(field)) {
+          out[`${field}_search_hash`] = this.cryptoService.hmac(out[field].toLowerCase().trim());
+        }
+        out[field] = this.cryptoService.encrypt(out[field]);
+      }
+    }
+    return out;
+  }
+
+  private decryptPii(doc: any): any {
+    if (!doc) return doc;
+    const obj = typeof doc.toObject === 'function' ? doc.toObject() : { ...doc };
+    for (const field of PII_FIELDS) {
+      if (typeof obj[field] === 'string' && obj[field].length > 0) {
+        try { obj[field] = this.cryptoService.decrypt(obj[field]); } catch { /* leave as-is */ }
+      }
+    }
+    return obj;
+  }
+
+  private decryptMany(docs: any[]): any[] {
+    return docs.map(d => this.decryptPii(d));
+  }
+
+  private async validateDepartment(department: string, tenantId: string): Promise<void> {
+    const valid = await this.departmentsService.validateDepartmentName(department, tenantId);
+    if (!valid) {
+      const available = await this.departmentsService.findActiveNames(tenantId);
+      throw new BadRequestException(
+        `Department "${department}" does not exist. Available departments: ${available.join(', ')}`,
+      );
+    }
+  }
+
   async create(createDoctorDto: CreateDoctorDto, userId: string, tenantId: string, username?: string) {
+    // Validate department against the Department collection
+    if (createDoctorDto.department) {
+      await this.validateDepartment(createDoctorDto.department, tenantId);
+    }
+
+    const encrypted = this.encryptPii({ ...createDoctorDto });
     const newDoctor = new this.doctorModel({
-      ...createDoctorDto,
+      ...encrypted,
       tenantId,
       createdBy: username || userId,
       updatedBy: username || userId,
@@ -27,17 +78,17 @@ export class DoctorsService {
       action: 'create',
       entity: 'doctor',
       entityId: saved.id as string,
-      newValue: saved.toObject(),
+      newValue: this.decryptPii(saved),
       tenantId,
     });
 
-    return saved;
+    return this.decryptPii(saved);
   }
 
   async findAll(
     tenantId: string,
     page = 1,
-    limit = 20,
+    limit = 25,
     search?: string,
     status?: string,
     department?: string,
@@ -46,20 +97,23 @@ export class DoctorsService {
     if (status) filter.status = status;
     if (department) filter.department = department;
     if (search) {
+      const searchHash = this.cryptoService.hmac(search.toLowerCase().trim());
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
         { employee_id: { $regex: search, $options: 'i' } },
         { specialisation: { $regex: search, $options: 'i' } },
+        { department: { $regex: search, $options: 'i' } },
+        { phone_search_hash: searchHash },
+        { email_search_hash: searchHash },
       ];
     }
 
     const skip = (page - 1) * limit;
     const [data, total] = await Promise.all([
-      this.doctorModel.find(filter).skip(skip).limit(limit).sort({ createdAt: -1 }).exec(),
+      this.doctorModel.find(filter).skip(skip).limit(limit).sort({ createdAt: -1 }).lean().exec(),
       this.doctorModel.countDocuments(filter).exec(),
     ]);
 
-    return { data, total, page, limit };
+    return { data: this.decryptMany(data), total, page, limit };
   }
 
   async getStats(tenantId: string) {
@@ -91,18 +145,26 @@ export class DoctorsService {
     };
   }
 
+
   async findOne(id: string, tenantId: string) {
-    const doctor = await this.doctorModel.findOne({ _id: id, tenantId }).exec();
+    const doctor = await this.doctorModel.findOne({ _id: id, tenantId }).lean().exec();
     if (!doctor) throw new NotFoundException('Doctor not found');
-    return doctor;
+    return this.decryptPii(doctor);
   }
 
   async update(id: string, updateDoctorDto: UpdateDoctorDto, userId: string, tenantId: string, username?: string) {
-    const old = await this.doctorModel.findOne({ _id: id, tenantId }).exec();
+    const old = await this.doctorModel.findOne({ _id: id, tenantId }).lean().exec();
     if (!old) throw new NotFoundException('Doctor not found');
 
+    // Validate department if it is being changed
+    if (updateDoctorDto.department) {
+      await this.validateDepartment(updateDoctorDto.department, tenantId);
+    }
+
+    const encrypted = this.encryptPii({ ...updateDoctorDto });
     const updated = await this.doctorModel
-      .findByIdAndUpdate(id, { ...updateDoctorDto, updatedBy: username || userId }, { new: true })
+      .findByIdAndUpdate(id, { ...encrypted, updatedBy: username || userId }, { new: true })
+      .lean()
       .exec();
 
     void this.auditService.log({
@@ -110,12 +172,12 @@ export class DoctorsService {
       action: 'update',
       entity: 'doctor',
       entityId: id,
-      oldValue: old.toObject(),
-      newValue: updated?.toObject(),
+      oldValue: this.decryptPii(old),
+      newValue: this.decryptPii(updated),
       tenantId,
     });
 
-    return updated;
+    return this.decryptPii(updated);
   }
 
   async remove(id: string, userId: string, tenantId: string) {

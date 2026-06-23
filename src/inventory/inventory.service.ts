@@ -2,16 +2,23 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { InventoryItem, InventoryItemDocument } from './schemas/inventory-item.schema';
+import { InventoryLocation, InventoryLocationDocument } from './schemas/inventory-location.schema';
+import { InventoryBatch, InventoryBatchDocument } from './schemas/inventory-batch.schema';
 import { CreateInventoryItemDto } from './dto/create-inventory-item.dto';
 import { UpdateInventoryItemDto } from './dto/update-inventory-item.dto';
 import { AdjustStockDto } from './dto/adjust-stock.dto';
+import { AssignLocationDto } from './dto/assign-location.dto';
 import { AuditService } from '@audit/audit.service';
+import { NotificationEventService } from '../notifications/notification-event.service';
 
 @Injectable()
 export class InventoryService {
   constructor(
     @InjectModel(InventoryItem.name) private itemModel: Model<InventoryItemDocument>,
+    @InjectModel(InventoryLocation.name) private invLocModel: Model<InventoryLocationDocument>,
+    @InjectModel(InventoryBatch.name) private batchModel: Model<InventoryBatchDocument>,
     private readonly auditService: AuditService,
+    private readonly notifEvent: NotificationEventService,
   ) {}
 
   async create(dto: CreateInventoryItemDto, userId: string, tenantId: string, username?: string) {
@@ -20,7 +27,9 @@ export class InventoryService {
     return saved;
   }
 
-  async findAll(tenantId: string, category?: string, low_stock?: boolean, search?: string) {
+  async findAll(tenantId: string, category?: string, low_stock?: boolean, search?: string, page = 1, limit = 25) {
+    const safeLimit = Math.min(limit, 100);
+    const skip = (page - 1) * safeLimit;
     const filter: Record<string, any> = { tenantId };
     if (category) filter.category = category;
     if (low_stock) {
@@ -33,7 +42,19 @@ export class InventoryService {
         { category: { $regex: search, $options: 'i' } },
       ];
     }
-    return this.itemModel.find(filter).sort({ name: 1 }).exec();
+    const [data, total] = await Promise.all([
+      this.itemModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(safeLimit).exec(),
+      this.itemModel.countDocuments(filter).exec(),
+    ]);
+    return { data, total, page, limit: safeLimit };
+  }
+
+  async getLocations(tenantId: string): Promise<string[]> {
+    const locations: string[] = await this.itemModel.distinct('location', {
+      tenantId,
+      location: { $nin: [null, ''] },
+    });
+    return locations.filter(Boolean).sort();
   }
 
   async getStats(tenantId: string) {
@@ -198,6 +219,223 @@ export class InventoryService {
       tenantId,
     });
 
+    // Emit notification events based on new stock level
+    if (updated) {
+      const isOutOfStock = newStock === 0;
+      const isLowStock = !isOutOfStock && updated.min_stock_level && newStock <= updated.min_stock_level;
+      if (isOutOfStock || isLowStock) {
+        this.notifEvent.emit({
+          eventType: isOutOfStock ? 'inventory.out_of_stock' : 'inventory.low_stock',
+          entity_id: id,
+          entity_type: 'inventory_item',
+          tenantId,
+          createdBy: userId,
+          timestamp: new Date().toISOString(),
+          title: isOutOfStock ? 'Out of Stock' : 'Low Stock Alert',
+          message: `${updated.name} stock is ${isOutOfStock ? 'depleted' : 'below minimum level'} (${newStock} units remaining)`,
+          severity: isOutOfStock ? 'error' : 'warning',
+          actionUrl: '/inventory',
+          metadata: { itemId: id, itemName: updated.name, currentStock: newStock, minStock: updated.min_stock_level },
+        });
+      }
+    }
+
     return updated;
+  }
+
+  async getItemLocations(itemId: string, tenantId: string) {
+    await this.findOne(itemId, tenantId);
+    return this.invLocModel
+      .find({ inventory_item_id: itemId, tenantId })
+      .sort({ location_name: 1 })
+      .lean()
+      .exec();
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Batch tracking
+  // ═══════════════════════════════════════════════════════════════
+
+  async getItemBatches(itemId: string, tenantId: string, includeExpired = false) {
+    await this.findOne(itemId, tenantId);
+    const filter: any = { inventory_item_id: itemId, tenantId };
+    if (!includeExpired) {
+      filter.status = { $in: ['active'] };
+    }
+    return this.batchModel
+      .find(filter)
+      .sort({ expiry_date: 1 }) // FEFO — first expiry first out
+      .lean()
+      .exec();
+  }
+
+  async createBatch(
+    itemId: string,
+    batchData: {
+      batch_number: string;
+      expiry_date?: string;
+      quantity: number;
+      po_number?: string;
+      po_id?: string;
+      manufacturer?: string;
+      location_name?: string;
+      unit_cost?: number;
+    },
+    userId: string,
+    tenantId: string,
+  ) {
+    await this.findOne(itemId, tenantId);
+
+    // Check if batch already exists for this item
+    const existing = await this.batchModel.findOne({
+      inventory_item_id: itemId,
+      batch_number: batchData.batch_number,
+      tenantId,
+    }).exec();
+
+    if (existing) {
+      // Add to existing batch quantity
+      existing.quantity += batchData.quantity;
+      if (batchData.expiry_date) existing.expiry_date = batchData.expiry_date;
+      existing.updatedBy = userId;
+      const updated = await existing.save();
+      return updated;
+    }
+
+    // Determine initial status based on expiry
+    let status = 'active';
+    if (batchData.expiry_date) {
+      const expiry = new Date(batchData.expiry_date);
+      if (expiry < new Date()) status = 'expired';
+    }
+
+    const batch = new this.batchModel({
+      inventory_item_id: itemId,
+      batch_number: batchData.batch_number,
+      expiry_date: batchData.expiry_date || '',
+      quantity: batchData.quantity,
+      used_quantity: 0,
+      received_date: new Date().toISOString().split('T')[0],
+      po_number: batchData.po_number || '',
+      po_id: batchData.po_id || '',
+      manufacturer: batchData.manufacturer || '',
+      location_name: batchData.location_name || '',
+      unit_cost: batchData.unit_cost || 0,
+      status,
+      tenantId,
+      createdBy: userId,
+      updatedBy: userId,
+    });
+    const saved = await batch.save();
+
+    void this.auditService.log({
+      userId,
+      action: 'create',
+      entity: 'inventory_batch',
+      entityId: saved.id as string,
+      newValue: saved.toObject(),
+      tenantId,
+    });
+
+    return saved;
+  }
+
+  async getExpiringBatches(tenantId: string, daysAhead = 90) {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() + daysAhead);
+    return this.batchModel
+      .find({
+        tenantId,
+        status: 'active',
+        expiry_date: { $ne: '', $lte: cutoffDate.toISOString().split('T')[0] },
+      })
+      .sort({ expiry_date: 1 })
+      .lean()
+      .exec();
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Reorder suggestions — items below min_stock_level
+  // ═══════════════════════════════════════════════════════════════
+
+  async getReorderSuggestions(tenantId: string) {
+    const items = await this.itemModel
+      .find({
+        tenantId,
+        is_active: true,
+        $expr: { $lte: ['$current_stock', '$min_stock_level'] },
+      })
+      .sort({ current_stock: 1 })
+      .lean()
+      .exec();
+
+    return items.map((item: any) => {
+      const deficit = Math.max(0, (item.min_stock_level || 0) - (item.current_stock || 0));
+      // reorder_quantity if set, otherwise order up to max_stock_level, otherwise 2x min
+      const suggestedQty = item.reorder_quantity
+        || (item.max_stock_level ? item.max_stock_level - item.current_stock : deficit * 2)
+        || deficit;
+
+      return {
+        _id: item._id,
+        sku: item.sku,
+        name: item.name,
+        category: item.category,
+        current_stock: item.current_stock,
+        min_stock_level: item.min_stock_level,
+        max_stock_level: item.max_stock_level,
+        reorder_quantity: item.reorder_quantity,
+        deficit,
+        suggested_order_qty: Math.max(suggestedQty, 1),
+        unit_price: item.unit_price || 0,
+        supplier: item.supplier || '',
+        supplier_id: item.supplier_id || '',
+        estimated_cost: Math.max(suggestedQty, 1) * (item.unit_price || 0),
+      };
+    });
+  }
+
+  async assignItemLocation(itemId: string, dto: AssignLocationDto, userId: string, tenantId: string) {
+    await this.findOne(itemId, tenantId);
+
+    const filter = {
+      inventory_item_id: itemId,
+      location_id: dto.location_id,
+      sub_location: dto.sub_location || null,
+      tenantId,
+    };
+
+    const existing = await this.invLocModel.findOne(filter).exec();
+
+    if (existing) {
+      existing.quantity = dto.quantity;
+      existing.location_name = dto.location_name;
+      if (dto.sub_location !== undefined) existing.sub_location = dto.sub_location;
+      const updated = await existing.save();
+
+      void this.auditService.log({
+        userId, action: 'update', entity: 'inventory_location', entityId: updated.id as string,
+        newValue: updated.toObject(), tenantId,
+      });
+
+      return updated;
+    }
+
+    const newRecord = new this.invLocModel({
+      inventory_item_id: itemId,
+      location_id: dto.location_id,
+      location_name: dto.location_name,
+      sub_location: dto.sub_location || null,
+      quantity: dto.quantity,
+      tenantId,
+    });
+    const saved = await newRecord.save();
+
+    void this.auditService.log({
+      userId, action: 'create', entity: 'inventory_location', entityId: saved.id as string,
+      newValue: saved.toObject(), tenantId,
+    });
+
+    return saved;
   }
 }

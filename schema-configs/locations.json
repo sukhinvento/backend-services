@@ -1,0 +1,8 @@
+{
+  "fields": [
+    { "field_id": "department", "label": "Department", "type": "enum", "values": ["Pharmacy", "Warehouse", "Emergency", "OPD", "IPD", "Surgery", "Lab"], "required": false },
+    { "field_id": "manager", "label": "Location Manager", "type": "string", "required": false },
+    { "field_id": "operating_hours", "label": "Operating Hours", "type": "string", "required": false },
+    { "field_id": "notes", "label": "Notes", "type": "string", "required": false }
+  ]
+}

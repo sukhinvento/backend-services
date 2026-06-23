@@ -1,34 +1,40 @@
 import { Injectable } from '@nestjs/common';
-import { Model, Schema } from 'mongoose';
+import { Model } from 'mongoose';
 import { QueryDto } from '../dto/query.dto';
 
 @Injectable()
 export class QueryBuilderService<T> {
-  buildQuery(model: Model<T>, queryDto: QueryDto) {
-    const { page = 1, limit = 10, sort, filter } = queryDto;
+  async buildQuery(model: Model<T>, queryDto: QueryDto) {
+    const { page = 1, limit = 25, sort, filter } = queryDto;
+    const safeLimit = Math.min(limit, 100);
+    const skip = (page - 1) * safeLimit;
 
-    const query = model.find();
+    const mongoFilter: Record<string, any> = {};
 
     if (filter) {
       const schemaPaths = Object.keys(model.schema.paths);
-      const transformedFilter: Record<string, any> = {};
       for (const key in filter) {
         if (schemaPaths.includes(key)) {
-          transformedFilter[key] = filter[key];
+          mongoFilter[key] = filter[key];
         } else {
-          transformedFilter[`custom_fields.${key}`] = filter[key];
+          mongoFilter[`custom_fields.${key}`] = filter[key];
         }
       }
-      query.where(transformedFilter);
     }
 
+    // Default sort: createdAt descending; override with query param
+    let sortObj: Record<string, 1 | -1> = { createdAt: -1 };
     if (sort) {
-      const [field, order] = sort.split('_');
-      query.sort({ [field]: order === 'desc' ? -1 : 1 });
+      // Support "field_desc", "field_asc", or "field:desc"
+      const [field, order] = sort.replace(':', '_').split('_');
+      if (field) sortObj = { [field]: order === 'asc' ? 1 : -1 };
     }
 
-    query.skip((page - 1) * limit).limit(limit);
+    const [data, total] = await Promise.all([
+      model.find(mongoFilter).sort(sortObj).skip(skip).limit(safeLimit).exec(),
+      model.countDocuments(mongoFilter).exec(),
+    ]);
 
-    return query;
+    return { data, total, page, limit: safeLimit };
   }
 }

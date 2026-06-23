@@ -47,8 +47,12 @@ export class DiagnosticsController {
   @Scopes(Scope.DIAGNOSTICS)
   @Roles(Role.ADMIN, Role.MANAGER, Role.DOCTOR, Role.NURSE, Role.LAB_TECHNICIAN, Role.RECEPTIONIST, Role.BILLING_STAFF)
   @ApiOperation({ summary: 'List diagnostic tests catalog' })
-  findAllTests(@TenantId() tenantId: string) {
-    return this.diagnosticsService.findAllTests(tenantId);
+  findAllTests(
+    @TenantId() tenantId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.diagnosticsService.findAllTests(tenantId, page ? parseInt(page, 10) : 1, limit ? parseInt(limit, 10) : 25);
   }
 
   @Patch('tests/:id')
@@ -102,8 +106,10 @@ export class DiagnosticsController {
     @Query('status') status?: string,
     @Query('patient_id') patient_id?: string,
     @Query('priority') priority?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.diagnosticsService.findAllBookings(tenantId, status, patient_id, priority);
+    return this.diagnosticsService.findAllBookings(tenantId, status, patient_id, priority, page ? parseInt(page, 10) : 1, limit ? parseInt(limit, 10) : 25);
   }
 
   @Get('bookings/stats')

@@ -3,10 +3,14 @@ import { AppModule } from './app.module';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
+import { AuditHttpInterceptor } from '@common/interceptors/audit-http.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
+
+  // Global HTTP audit interceptor — logs every request/response
+  app.useGlobalInterceptors(app.get(AuditHttpInterceptor));
 
   // Enable validation (lenient mode to not break existing endpoints)
   app.useGlobalPipes(

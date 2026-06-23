@@ -40,7 +40,7 @@ async function seedDatabase() {
         scopes: [
           'vendors', 'tenants', 'invoices', 'purchase-orders', 'sales-orders',
           'user-management', 'system-admin', 'patients', 'doctors', 'rooms',
-          'admissions', 'diagnostics', 'medications', 'hospital-billing', 'inventory'
+          'admissions', 'diagnostics', 'medications', 'invoices', 'inventory'
         ],
         tenantId: DEFAULT_TENANT_ID,
       },
@@ -50,7 +50,7 @@ async function seedDatabase() {
         scopes: [
           'vendors', 'invoices', 'purchase-orders', 'sales-orders',
           'patients', 'doctors', 'rooms', 'admissions', 'diagnostics',
-          'medications', 'hospital-billing', 'inventory'
+          'medications', 'invoices', 'inventory'
         ],
         tenantId: DEFAULT_TENANT_ID,
       },
@@ -81,7 +81,7 @@ async function seedDatabase() {
       {
         _id: new ObjectId(),
         name: 'billing_staff',
-        scopes: ['invoices', 'hospital-billing', 'patients', 'admissions'],
+        scopes: ['invoices', 'invoices', 'patients', 'admissions'],
         tenantId: DEFAULT_TENANT_ID,
       },
       {

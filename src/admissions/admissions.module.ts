@@ -9,6 +9,7 @@ import { AuthModule } from '@auth/auth.module';
 import { CommonModule } from '@common/common.module';
 import { AuditModule } from '@audit/audit.module';
 import { KafkaModule } from '@kafka/kafka.module';
+import { AbdmModule } from '../abdm/abdm.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { KafkaModule } from '@kafka/kafka.module';
     CommonModule,
     AuditModule,
     KafkaModule,
+    AbdmModule,
   ],
   controllers: [AdmissionsController],
   providers: [AdmissionsService],

@@ -75,6 +75,22 @@ export class Patient extends BaseSchema {
 
   @Prop({ type: MongooseSchema.Types.Mixed })
   custom_fields: Record<string, any>;
+
+  // ── ABDM / ABHA fields (populated only when ABDM is enabled) ──────────────
+  @Prop({ sparse: true })
+  abha_number: string;       // 14-digit: "12-3456-7890-1234"
+
+  @Prop({ sparse: true })
+  abha_address: string;      // "patient@abdm"
+
+  @Prop({ type: Date })
+  abha_verified_at: Date;    // timestamp of successful ABHA verification
+
+  @Prop({ default: false })
+  abha_linked: boolean;      // quick flag for UI: show ABHA badge
+
+  @Prop()
+  abha_link_token: string;   // ephemeral token during linking flow (cleared after)
 }
 
 export const PatientSchema = SchemaFactory.createForClass(Patient);

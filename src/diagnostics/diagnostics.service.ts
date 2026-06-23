@@ -92,8 +92,14 @@ export class DiagnosticsService {
     return saved;
   }
 
-  async findAllTests(tenantId: string) {
-    return this.testModel.find({ tenantId }).exec();
+  async findAllTests(tenantId: string, page = 1, limit = 25) {
+    const safeLimit = Math.min(limit, 100);
+    const skip = (page - 1) * safeLimit;
+    const [data, total] = await Promise.all([
+      this.testModel.find({ tenantId }).sort({ createdAt: -1 }).skip(skip).limit(safeLimit).exec(),
+      this.testModel.countDocuments({ tenantId }).exec(),
+    ]);
+    return { data, total, page, limit: safeLimit };
   }
 
   async updateTest(id: string, dto: UpdateDiagnosticTestDto, userId: string, tenantId: string, username?: string) {
@@ -135,18 +141,24 @@ export class DiagnosticsService {
     return saved;
   }
 
-  async findAllBookings(tenantId: string, status?: string, patient_id?: string, priority?: string) {
+  async findAllBookings(tenantId: string, status?: string, patient_id?: string, priority?: string, page = 1, limit = 25) {
+    const safeLimit = Math.min(limit, 100);
+    const skip = (page - 1) * safeLimit;
     const filter: Record<string, any> = { tenantId };
     if (status) filter.status = status;
     if (patient_id) filter.patient_id = patient_id;
     if (priority) filter.priority = priority;
-    return this.bookingModel
-      .find(filter)
-      .sort({ ordered_date: -1 })
-      .populate('patient_id', 'first_name last_name name full_name')
-      .populate('test_id', 'name category')
-      .populate('ordered_by_doctor_id', 'name full_name')
-      .exec();
+    const [data, total] = await Promise.all([
+      this.bookingModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .populate('patient_id', 'first_name last_name name full_name')
+        .populate('test_id', 'name category')
+        .populate('ordered_by_doctor_id', 'name full_name')
+        .skip(skip).limit(safeLimit).exec(),
+      this.bookingModel.countDocuments(filter).exec(),
+    ]);
+    return { data, total, page, limit: safeLimit };
   }
 
   async getBookingStats(tenantId: string) {

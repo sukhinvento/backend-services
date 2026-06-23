@@ -24,6 +24,14 @@ export class PurchaseOrder extends BaseSchema {
   @Prop()
   vendor_address: string;
 
+  /** Vendor's GSTIN — required on GST purchase invoice (buyer GSTIN) */
+  @Prop()
+  vendor_gstin: string;
+
+  /** Vendor's state code — used to determine IGST vs CGST+SGST */
+  @Prop()
+  vendor_state_code: string;
+
   @Prop()
   shipping_address: string;
 

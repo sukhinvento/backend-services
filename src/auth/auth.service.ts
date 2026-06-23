@@ -56,7 +56,7 @@ export class AuthService {
 
     const payload = {
       username: user.username,
-      sub: user.id as string,
+      sub: (user._id as any).toString(),
       roles: userRoles.map((r) => r.name),
       scopes: scopes,
       tenantId: user.tenantId,
@@ -64,7 +64,7 @@ export class AuthService {
 
     return {
       access_token: this.jwtService.sign(payload),
-      userId: user.id as string,
+      userId: (user._id as any).toString(),
       username: user.username,
       name: user.name || ((user as any).first_name ? `${(user as any).first_name} ${(user as any).last_name || ''}`.trim() : user.username),
       email: user.email || '',
@@ -234,7 +234,7 @@ export class AuthService {
         tenantId,
       },
     };
-    return this.queryBuilder.buildQuery(this.userModel, queryWithTenant).exec();
+    return await this.queryBuilder.buildQuery(this.userModel, queryWithTenant);
   }
 
   async findOneUser(id: string, tenantId: string) {

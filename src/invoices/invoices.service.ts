@@ -63,7 +63,7 @@ export class InvoicesService {
   }
 
   async findAll(query: QueryDto) {
-    return this.queryBuilder.buildQuery(this.invoiceModel, query).exec();
+    return await this.queryBuilder.buildQuery(this.invoiceModel, query);
   }
 
   async findOne(id: string) {
@@ -138,6 +138,152 @@ export class InvoicesService {
    * Update the linked invoice when a PO/SO payment is recorded.
    * Finds invoice by order_id and updates paid_amount + status.
    */
+  // ── Revenue source types (money IN to hospital) ────────────────────────────
+  private readonly REVENUE_SOURCES = ['sales_order', 'diagnostic_booking', 'admission'];
+  // ── Expenditure source types (money OUT from hospital) ─────────────────────
+  private readonly EXPENDITURE_SOURCES = ['purchase_order'];
+
+  /** Weekly revenue collection — SO + diagnostics + admissions only */
+  async getWeeklyAnalytics(tenantId: string, weeks = 12) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - weeks * 7);
+
+    const result = await this.invoiceModel.aggregate([
+      {
+        $match: {
+          tenantId,
+          createdAt: { $gte: cutoff },
+          source_type: { $in: this.REVENUE_SOURCES },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $isoWeekYear: '$createdAt' },
+            week: { $isoWeek: '$createdAt' },
+          },
+          collected: { $sum: '$paid_amount' },
+          billed: { $sum: '$amount' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { '_id.year': 1, '_id.week': 1 } },
+    ]);
+
+    return result.map((r: any) => ({
+      week: `W${r._id.week}`,
+      collected: Math.round(r.collected / 1000),
+      outstanding: Math.round(Math.max(0, r.billed - r.collected) / 1000),
+      billed: Math.round(r.billed / 1000),
+      count: r.count,
+    }));
+  }
+
+  /** Monthly revenue — SO + diagnostics + admissions only */
+  async getMonthlyAnalytics(tenantId: string, months = 12) {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - months);
+
+    const result = await this.invoiceModel.aggregate([
+      {
+        $match: {
+          tenantId,
+          createdAt: { $gte: cutoff },
+          source_type: { $in: this.REVENUE_SOURCES },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } },
+          revenue: { $sum: '$amount' },
+          collected: { $sum: '$paid_amount' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    return result.map((r: any) => ({
+      month: r._id,
+      revenue: Math.round(r.revenue / 1000),
+      collected: Math.round(r.collected / 1000),
+      count: r.count,
+    }));
+  }
+
+  /** Monthly expenditure — purchase orders only (money OUT to vendors) */
+  async getMonthlyExpenditureAnalytics(tenantId: string, months = 12) {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - months);
+
+    const result = await this.invoiceModel.aggregate([
+      {
+        $match: {
+          tenantId,
+          createdAt: { $gte: cutoff },
+          source_type: { $in: this.EXPENDITURE_SOURCES },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } },
+          spend: { $sum: '$amount' },
+          paid: { $sum: '$paid_amount' },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    return result.map((r: any) => ({
+      month: r._id,
+      spend: Math.round(r.spend / 1000),
+      paid: Math.round(r.paid / 1000),
+      count: r.count,
+    }));
+  }
+
+  /**
+   * Transition invoice status when the linked PO/SO changes status.
+   * Only transitions forward (draft → pending, never backwards).
+   */
+  async updateStatusByOrderId(
+    orderId: string,
+    newStatus: string,
+    userId: string,
+  ) {
+    const invoice = await this.invoiceModel.findOne({ order_id: orderId }).exec();
+    if (!invoice) return null;
+
+    // Only transition forward: draft → pending/sent. Never overwrite paid/partially_paid.
+    const currentStatus = String(invoice.status || 'draft').toLowerCase();
+    const noOverwrite = ['paid', 'partially_paid', 'cancelled', 'void'];
+    if (noOverwrite.includes(currentStatus)) {
+      return invoice; // don't regress status
+    }
+
+    const oldInvoice = invoice.toObject();
+    const updatedInvoice = await this.invoiceModel
+      .findByIdAndUpdate(
+        invoice._id,
+        { status: newStatus, updatedBy: userId },
+        { new: true },
+      )
+      .exec();
+
+    void this.auditService.log({
+      userId,
+      action: 'status_update',
+      entity: 'invoice',
+      entityId: invoice._id as string,
+      oldValue: oldInvoice,
+      newValue: updatedInvoice?.toObject(),
+      tenantId: invoice.tenantId,
+    });
+
+    return updatedInvoice;
+  }
+
   async updatePaymentByOrderId(
     orderId: string,
     paidAmount: number,
@@ -147,11 +293,14 @@ export class InvoicesService {
     const invoice = await this.invoiceModel.findOne({ order_id: orderId }).exec();
     if (!invoice) return null;
 
-    let status = 'draft';
+    const currentStatus = String(invoice.status || 'draft').toLowerCase();
+    let status = currentStatus;
     if (paidAmount >= totalAmount && totalAmount > 0) {
       status = 'paid';
     } else if (paidAmount > 0) {
       status = 'partially_paid';
+    } else if (currentStatus === 'draft') {
+      status = 'pending'; // move from draft to pending when order updates payment
     }
 
     const oldInvoice = invoice.toObject();

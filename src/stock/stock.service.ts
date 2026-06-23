@@ -7,19 +7,25 @@ import { CreateStockAdjustmentDto } from './dto/create-stock-adjustment.dto';
 import { UpdateStockAdjustmentDto } from './dto/update-stock-adjustment.dto';
 import { StockTransfer, StockTransferDocument } from './schemas/stock-transfer.schema';
 import { StockAdjustment, StockAdjustmentDocument } from './schemas/stock-adjustment.schema';
+import { InventoryLocation, InventoryLocationDocument } from '../inventory/schemas/inventory-location.schema';
 import { TenantsService } from '@tenants/tenants.service';
 import { AuditService } from '@audit/audit.service';
 import { QueryDto } from '@common/dto/query.dto';
 import { QueryBuilderService } from '@common/services/query-builder.service';
+import { NotificationEventService } from '../notifications/notification-event.service';
 
 @Injectable()
 export class StockService {
+  private readonly logger = new (require('@nestjs/common').Logger)(StockService.name);
+
   constructor(
     @InjectModel(StockTransfer.name) private stockTransferModel: Model<StockTransferDocument>,
     @InjectModel(StockAdjustment.name) private stockAdjustmentModel: Model<StockAdjustmentDocument>,
+    @InjectModel(InventoryLocation.name) private invLocModel: Model<InventoryLocationDocument>,
     private readonly tenantsService: TenantsService,
     private readonly auditService: AuditService,
     private readonly queryBuilder: QueryBuilderService<any>,
+    private readonly notifEvent: NotificationEventService,
   ) {}
 
   // ─── Stock Transfer Methods ────────────────────────────────────────────────
@@ -53,14 +59,26 @@ export class StockService {
       tenantId,
     });
 
+    this.notifEvent.emit({
+      eventType: 'stock_transfer.created',
+      entity_id: saved.id as string,
+      entity_type: 'stock_transfer',
+      tenantId,
+      createdBy: userId,
+      timestamp: new Date().toISOString(),
+      title: 'New Stock Transfer',
+      message: `Transfer ${transfer_number} created: ${dto.from_location || 'Source'} → ${dto.to_location || 'Destination'} (${(dto as any).items?.length ?? 0} item(s))`,
+      severity: 'info',
+      actionUrl: '/stock-transfer',
+      metadata: { transfer_number, from: dto.from_location, to: dto.to_location },
+    });
+
     return saved;
   }
 
   async listTransfers(query: QueryDto, tenantId: string) {
     const filter = { ...(query.filter || {}), tenantId };
-    return this.queryBuilder
-      .buildQuery(this.stockTransferModel, { ...query, filter })
-      .exec();
+    return await this.queryBuilder.buildQuery(this.stockTransferModel, { ...query, filter });
   }
 
   async findOneTransfer(id: string, tenantId: string) {
@@ -70,13 +88,20 @@ export class StockService {
   }
 
   async updateTransfer(id: string, dto: UpdateStockTransferDto, userId: string, tenantId: string, username?: string) {
-    await this.findOneTransfer(id, tenantId);
+    const existing = await this.findOneTransfer(id, tenantId);
+    const oldStatus = (existing as any)?.status || '';
 
     const updated = await this.stockTransferModel.findOneAndUpdate(
       { _id: id, tenantId },
       { ...dto, updatedBy: username || userId },
       { new: true },
     ).exec();
+
+    // If status changed to completed, move inventory location stock
+    const newStatus = String(dto.status || '').toLowerCase();
+    if (newStatus === 'completed' && oldStatus !== 'completed') {
+      await this.moveLocationStock(updated, tenantId);
+    }
 
     void this.auditService.log({
       userId,
@@ -88,6 +113,53 @@ export class StockService {
     });
 
     return updated;
+  }
+
+  /** Move inventory stock between locations when a transfer completes */
+  private async moveLocationStock(transfer: any, tenantId: string) {
+    if (!transfer) return;
+    const obj = typeof transfer.toObject === 'function' ? transfer.toObject() : transfer;
+    const fromLocId = obj.from_location_id;
+    const toLocId = obj.to_location_id;
+    const toLocName = obj.to_location || '';
+    const items: any[] = obj.items || [];
+
+    if (!fromLocId || !toLocId || items.length === 0) return;
+
+    for (const item of items) {
+      const itemId = item.item_id || item.id;
+      const qty = item.quantity ?? item.qty ?? 0;
+      if (!itemId || qty <= 0) continue;
+
+      try {
+        // Deduct from source location
+        const sourceRec = await this.invLocModel.findOne({
+          inventory_item_id: itemId, location_id: fromLocId, tenantId,
+        }).exec();
+        if (sourceRec) {
+          sourceRec.quantity = Math.max(0, sourceRec.quantity - qty);
+          await sourceRec.save();
+        }
+
+        // Add to destination (upsert)
+        const destRec = await this.invLocModel.findOne({
+          inventory_item_id: itemId, location_id: toLocId, sub_location: null, tenantId,
+        }).exec();
+        if (destRec) {
+          destRec.quantity += qty;
+          await destRec.save();
+        } else {
+          await new this.invLocModel({
+            inventory_item_id: itemId, location_id: toLocId, location_name: toLocName,
+            sub_location: null, quantity: qty, tenantId,
+          }).save();
+        }
+
+        this.logger.log(`Transfer: moved ${qty} of ${itemId} → ${toLocName}`);
+      } catch (err) {
+        this.logger.error(`Transfer: failed to move item ${itemId}`, err);
+      }
+    }
   }
 
   async deleteTransfer(id: string, userId: string, tenantId: string) {
@@ -115,6 +187,9 @@ export class StockService {
     ).exec();
 
     if (!transfer) throw new NotFoundException(`Stock transfer ${id} not found`);
+
+    // Move inventory stock between locations
+    await this.moveLocationStock(transfer, tenantId);
 
     void this.auditService.log({
       userId,
@@ -188,9 +263,7 @@ export class StockService {
 
   async listAdjustments(query: QueryDto, tenantId: string) {
     const filter = { ...(query.filter || {}), tenantId };
-    return this.queryBuilder
-      .buildQuery(this.stockAdjustmentModel, { ...query, filter })
-      .exec();
+    return await this.queryBuilder.buildQuery(this.stockAdjustmentModel, { ...query, filter });
   }
 
   async findOneAdjustment(id: string, tenantId: string) {

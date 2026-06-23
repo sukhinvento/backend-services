@@ -68,8 +68,10 @@ export class AdmissionsController {
     @Query('patient_id') patient_id?: string,
     @Query('doctor_id') doctor_id?: string,
     @Query('room_id') room_id?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.admissionsService.findAll(tenantId, status, patient_id, doctor_id, room_id);
+    return this.admissionsService.findAll(tenantId, status, patient_id, doctor_id, room_id, page ? parseInt(page, 10) : 1, limit ? parseInt(limit, 10) : 25);
   }
 
   @Get('active')

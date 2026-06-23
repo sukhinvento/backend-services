@@ -8,7 +8,6 @@ import { Vendor, VendorSchema } from './schemas/vendor.schema';
 import { AuthModule } from '@auth/auth.module';
 import { CommonModule } from '@common/common.module';
 import { TaxModule } from '../tax/tax.module';
-
 @Module({
   imports: [
     TenantsModule,

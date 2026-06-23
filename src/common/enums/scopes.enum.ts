@@ -23,12 +23,16 @@ export enum Scope {
   ADMISSIONS = 'admissions',
   DIAGNOSTICS = 'diagnostics',
   MEDICATIONS = 'medications',
-  HOSPITAL_BILLING = 'hospital-billing',
   INVENTORY = 'inventory',
+  LOCATIONS = 'locations',
+
+  // Finance module scopes
+  FINANCE = 'finance',
 
   // Support module scopes
   TAX = 'tax',
   ADDRESSES = 'addresses',
   DISCOUNTS = 'discounts',
   SETTINGS = 'settings',
+  DEPARTMENTS = 'departments',
 }

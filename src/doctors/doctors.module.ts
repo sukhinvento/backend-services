@@ -6,6 +6,7 @@ import { Doctor, DoctorSchema } from './schemas/doctor.schema';
 import { AuthModule } from '@auth/auth.module';
 import { CommonModule } from '@common/common.module';
 import { AuditModule } from '@audit/audit.module';
+import { DepartmentsModule } from '../departments/departments.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { AuditModule } from '@audit/audit.module';
     AuthModule,
     CommonModule,
     AuditModule,
+    DepartmentsModule,
   ],
   controllers: [DoctorsController],
   providers: [DoctorsService],

@@ -77,7 +77,7 @@ export class TaxService {
   }
 
   async findAll(query: QueryDto) {
-    return this.queryBuilder.buildQuery(this.taxModel, query).exec();
+    return await this.queryBuilder.buildQuery(this.taxModel, query);
   }
 
   async findOne(id: string) {
